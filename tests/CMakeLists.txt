@@ -3,11 +3,7 @@ if(NOT DEFINED UNICODE_BRIDGE_TESTS_INCLUDED)
   set(UNICODE_BRIDGE_TESTS_INCLUDED TRUE)
   # Set library name so that, if we change it, we only have to change this line
   # Set the name of the example executable once
-  set(UNICODE_BRIDGE_TESTS_EXECUTABLE_NAME UNICODE_BRIDGE_tests)
-  
-  set(UNICODE_BRIDGE_TEST_RUN_ARGS
-    "${CMAKE_CURRENT_SOURCE_DIR}/data/AUNICODE_BRIDGE_test_config"
-    CACHE STRING "Optional runtime args for UNICODE_BRIDGE_test executable")
+  set(UNICODE_BRIDGE_TESTS_EXECUTABLE_NAME unicode_bridge_tests)
 
   # The set of all test files. The idea behind these is they mirror the files in the library.
   # However we may change this as we move forward.

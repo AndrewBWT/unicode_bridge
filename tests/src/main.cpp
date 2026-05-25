@@ -1,7 +1,7 @@
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <spl_unicode.hpp>
 #include <tuple>
+#include <unicode_bridge.hpp>
 #include <windows.h>
 
 namespace unicode_bridge_testing
@@ -74,18 +74,14 @@ inline void
         int x = 4;
     }
     REQUIRE(error_l_arg.u8_code_points() == error_r_arg.u8_code_points());
-    if (error_l_arg.code_points_encountered()
-        != error_r_arg.code_points_encountered())
+    if (error_l_arg.u8_sub_error_code()
+        != error_r_arg.u8_sub_error_code())
     {
         int x = 4;
     }
     REQUIRE(
-        error_l_arg.code_points_encountered()
-        == error_r_arg.code_points_encountered()
-    );
-    REQUIRE(
-        error_l_arg.expected_code_points_size()
-        == error_r_arg.expected_code_points_size()
+        error_l_arg.u8_sub_error_code()
+        == error_r_arg.u8_sub_error_code()
     );
     REQUIRE(error_l_arg.u16_code_points() == error_r_arg.u16_code_points());
     REQUIRE(error_l_arg.char32_character() == error_r_arg.char32_character());
@@ -291,7 +287,7 @@ inline void
                               "conversion. std::string result is \""};
                 output.append(result.value());
                 output.append("\"");
-                auto result22{ convert_unicode_to_ascii(input_arg) };
+                auto result22{convert_unicode_to_ascii(input_arg)};
                 FAIL(output);
             }
             else
@@ -476,11 +472,15 @@ std::vector<
              )},
             {mk_unicode<char8_t>({0xC2}),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, 1, 2
+                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_2_found_1
              )},
             {mk_unicode<char8_t>({0xE2}),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'}, 1, 3
+                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_1
              )},
             {mk_unicode<char8_t>({0xE2, 0x80}),
              unicode_conversion_error_factory::truncated_sequence(
@@ -488,11 +488,14 @@ std::vector<
                   static_cast<char8_t>(0x80),
                   u8'\0',
                   u8'\0'},
-             2, 3
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_2
              )},
             {mk_unicode<char8_t>({0xF0}),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'}, 1, 4
+                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_1
              )},
             {mk_unicode<char8_t>({0xF0, 0x90}),
              unicode_conversion_error_factory::truncated_sequence(
@@ -500,7 +503,8 @@ std::vector<
                   static_cast<char8_t>(0x90),
                   u8'\0',
                   u8'\0'},
-             2, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_2
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}),
              unicode_conversion_error_factory::truncated_sequence(
@@ -508,7 +512,8 @@ std::vector<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_3
              )},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -516,7 +521,7 @@ std::vector<
                   static_cast<char8_t>(0x80),
                   u8'h',
                   u8'\0'},
-             3, 3
+             2
              )},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90}, u8"def"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -524,7 +529,7 @@ std::vector<
                   static_cast<char8_t>(0x90),
                   u8'd',
                   u8'e'},
-             4, 3
+             9
              )},
             {mk_unicode<char8_t>({0xC2, 0x00}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -532,7 +537,7 @@ std::vector<
                   static_cast<char8_t>(0x00),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xC2, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -540,7 +545,7 @@ std::vector<
                   static_cast<char8_t>(0x20),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xC2, 0xC0}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -548,7 +553,7 @@ std::vector<
                   static_cast<char8_t>(0xC0),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -556,7 +561,7 @@ std::vector<
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20),
                   u8'\0'},
-             3, 3
+             2
              )},
             {mk_unicode<char8_t>({0xE2, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -564,7 +569,7 @@ std::vector<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 2
+             1
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -572,7 +577,7 @@ std::vector<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80)},
-             4, 3
+             5
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -580,7 +585,7 @@ std::vector<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20)},
-             4, 4
+             6
              )},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -588,7 +593,7 @@ std::vector<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x80)},
-             4, 2
+             4
              )},
             {mk_unicode<char8_t>({0xC0, 0x80}, u8"hello"),
              unicode_conversion_error_factory::overlong_encoding(
@@ -1353,11 +1358,15 @@ std::vector<std::pair<
 
             {mk_unicode<char8_t>({0xC2}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, 1, 2
+                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_2_found_1
              )},
             {mk_unicode<char8_t>({0xE2}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'}, 1, 3
+                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_1
              )},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
@@ -1365,11 +1374,14 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x80),
                   u8'\0',
                   u8'\0'},
-             2, 3
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_2
              )},
             {mk_unicode<char8_t>({0xF0}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'}, 1, 4
+                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_1
              )},
             {mk_unicode<char8_t>({0xF0, 0x90}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
@@ -1377,7 +1389,8 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x90),
                   u8'\0',
                   u8'\0'},
-             2, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_2
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}, u8""),
              unicode_conversion_error_factory::truncated_sequence(
@@ -1385,7 +1398,8 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_3
              )},
 
             {mk_unicode<char8_t>({0xE2, 0x80}, u8"hello"),
@@ -1394,7 +1408,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x80),
                   u8'h',
                   u8'\0'},
-             3, 3
+             2
              )},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90}, u8"def"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1402,7 +1416,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x90),
                   u8'd',
                   u8'e'},
-             4, 3
+             9
              )},
             {mk_unicode<char8_t>({0xC2, 0x00}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1410,7 +1424,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x00),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xC2, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1418,7 +1432,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x20),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xC2, 0xC0}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1426,7 +1440,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0xC0),
                   u8'\0',
                   u8'\0'},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1434,7 +1448,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20),
                   u8'\0'},
-             3, 3
+             2
              )},
             {mk_unicode<char8_t>({0xE2, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1442,7 +1456,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 2
+             1
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1450,7 +1464,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80)},
-             4, 3
+             5
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1458,7 +1472,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20)},
-             4, 4
+             6
              )},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error_factory::invalid_continuation_byte(
@@ -1466,7 +1480,7 @@ std::vector<std::pair<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x80)},
-             4, 2
+             4
              )},
 
             {mk_unicode<char8_t>({0xC0, 0x80}, u8"hello"),
@@ -2301,10 +2315,9 @@ inline void
             }
             try
             {
-                auto res4a
-                    = next_char32_and_increment_iterator_with_exception(
-                        current_iterator, end_iterator
-                    );
+                auto res4a = next_char32_and_increment_iterator_with_exception(
+                    current_iterator, end_iterator
+                );
                 FAIL("Unexpected successful call of "
                      "next_char32_t_with_exception.");
             }
@@ -2379,11 +2392,15 @@ std::vector<std::tuple<
             // truncated sequence at offset 0
             {mk_unicode<char8_t>({0xC2}),
              0, unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, 1, 2
+                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_2_found_1
              )},
             {mk_unicode<char8_t>({0xE2}),
              0, unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'}, 1, 3
+                 0, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_1
              )},
             {mk_unicode<char8_t>({0xE2, 0x80}),
              0, unicode_conversion_error_factory::truncated_sequence(
@@ -2391,11 +2408,14 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x80),
                   u8'\0',
                   u8'\0'},
-             2, 3
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_2
              )},
             {mk_unicode<char8_t>({0xF0}),
              0, unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'}, 1, 4
+                 0, {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'},
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_1
              )},
             {mk_unicode<char8_t>({0xF0, 0x90}),
              0, unicode_conversion_error_factory::truncated_sequence(
@@ -2403,7 +2423,8 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   u8'\0',
                   u8'\0'},
-             2, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_2
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}),
              0, unicode_conversion_error_factory::truncated_sequence(
@@ -2411,12 +2432,14 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_3
              )},
             // truncated sequence mid-string
             {u8string(u8"a") + mk_unicode<char8_t>({0xC2}),
              1, unicode_conversion_error_factory::truncated_sequence(
-                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, 1, 2
+                 0, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_2_found_1
              )},
             {u8string(u8"ab") + mk_unicode<char8_t>({0xE2, 0x80}),
              2, unicode_conversion_error_factory::truncated_sequence(
@@ -2424,7 +2447,8 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x80),
                   u8'\0',
                   u8'\0'},
-             2, 3
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_3_found_2
              )},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90, 0x80}),
              3, unicode_conversion_error_factory::truncated_sequence(
@@ -2432,7 +2456,8 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   u8'\0'},
-             3, 4
+             unicode_conversion_error::truncated_sequence_sub_error::
+                     expected_4_found_3
              )},
 
             // invalid continuation byte at offset 0
@@ -2442,7 +2467,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x00),
                   static_cast<char8_t>(0x00)},
-             2, 2
+             0
              )},
             {mk_unicode<char8_t>({0xE2, 0x21, 0x80}),
              0, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2450,7 +2475,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x21),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x00)},
-             3, 2
+             1
              )},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}),
              0, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2458,7 +2483,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x00)},
-             3, 3
+             2
              )},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}),
              0, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2466,7 +2491,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x80)},
-             4, 2
+             4
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}),
              0, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2474,7 +2499,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x80)},
-             4, 3
+             5
              )},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}),
              0, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2482,7 +2507,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20)},
-             4, 4
+             6
              )},
             // invalid continuation byte mid-string
             {u8string(u8"a") + mk_unicode<char8_t>({0xC2, 0x20}),
@@ -2491,7 +2516,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x00),
                   static_cast<char8_t>(0x00)},
-             2, 2
+             0
              )},
             {u8string(u8"ab") + mk_unicode<char8_t>({0xE2, 0x80, 0x20}),
              2, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2499,7 +2524,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20),
                   static_cast<char8_t>(0x00)},
-             3, 3
+             2
              )},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}),
              3, unicode_conversion_error_factory::invalid_continuation_byte(
@@ -2507,7 +2532,7 @@ std::vector<std::tuple<
                   static_cast<char8_t>(0x90),
                   static_cast<char8_t>(0x80),
                   static_cast<char8_t>(0x20)},
-             4, 4
+             6
              )},
             // overlong at offset 0
             {mk_unicode<char8_t>({0xC0, 0x80}),
@@ -2923,7 +2948,8 @@ inline void
                 = unicode_conversion_with_exception<char32_t>(output_arg);
             auto ws_output
                 = unicode_conversion_with_exception<wchar_t>(output_arg);
-            std::u8string result1 = to_formatted_unicode_string<char8_t>(input_arg);
+            std::u8string result1
+                = to_formatted_unicode_string<char8_t>(input_arg);
             REQUIRE(result1 == output_arg);
             auto result2 = to_formatted_unicode_string<char16_t>(input_arg);
             REQUIRE(result2 == u16_output);
@@ -3649,32 +3675,38 @@ TEST_CASE(
          u8"begin a sequence representing a valid Unicode scalar "
          u8"value<additional message>."},
         {unicode_conversion_error_factory::truncated_sequence(
-             10, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'}, 1, 2
+             10, {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_2_found_1
          ), u8"The 11th code unit (0xC2) in the UTF-8 input passed to "
          u8"<function name> (\"<input string>\") was found to be a valid "
          u8"leading byte, indicating the "
          u8"start of a two-byte "
          u8"sequence. However, the input "
          u8"ended after the first code unit "
-         u8"— 1 continuation byte was "
+         u8"— one continuation byte was "
          u8"expected but was not present. As "
          u8"the sequence is incomplete, it cannot represent a valid Unicode "
          u8"scalar value<additional message>."},
         {unicode_conversion_error_factory::truncated_sequence(
-             10, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'}, 1, 3
+             10, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_3_found_1
          ), u8"The 11th code unit (0xE2) in the UTF-8 input passed to "
          u8"<function name> (\"<input string>\") was found to be a valid "
          u8"leading byte, indicating the start of a three-byte "
-         u8"sequence. However, the input ended after the first code unit — 2 "
+         u8"sequence. However, the input ended after the first code unit — two "
          u8"continuation bytes were expected but none were present. As the "
          u8"sequence is incomplete, it cannot represent a valid Unicode scalar "
          u8"value<additional message>."},
         {unicode_conversion_error_factory::truncated_sequence(
-             10, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'}, 1, 4
+             10, {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_4_found_1
          ), u8"The 11th code unit (0xE2) in the UTF-8 input passed to "
          u8"<function name> (\"<input string>\") was found to be a valid "
          u8"leading byte, indicating the start of a four-byte "
-         u8"sequence. However, the input ended after the first code unit — 3 "
+         u8"sequence. However, the input ended after the first code unit — three "
          u8"continuation bytes were expected but none were present. As the "
          u8"sequence is incomplete, it cannot represent a valid Unicode scalar "
          u8"value<additional message>."},
@@ -3683,11 +3715,12 @@ TEST_CASE(
               static_cast<char8_t>(0x80),
               u8'\0',
               u8'\0'},
-         2, 3
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_3_found_2
          ), u8"The 11th and 12th code units ([0xE2, 0x80]) in the UTF-8 input "
          u8"passed to <function name> (\"<input string>\") form the start of a "
          u8"three-byte sequence. However, the input ended after the second "
-         u8"code unit — 1 further continuation byte was expected but was not "
+         u8"code unit — one further continuation byte was expected but was not "
          u8"present. As the sequence is incomplete, it cannot represent a "
          u8"valid Unicode scalar value<additional message>."},
         {unicode_conversion_error_factory::truncated_sequence(
@@ -3695,11 +3728,12 @@ TEST_CASE(
               static_cast<char8_t>(0x90),
               u8'\0',
               u8'\0'},
-         2, 4
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_4_found_2
          ), u8"The 11th and 12th code units ([0xF0, 0x90]) in the UTF-8 input "
          u8"passed to <function name> (\"<input string>\") form the start of a "
          u8"four-byte sequence. However, the input ended after the second "
-         u8"code unit — 2 further continuation bytes were expected but none "
+         u8"code unit — two further continuation bytes were expected but none "
          u8"were present. As the sequence is incomplete, it cannot represent a "
          u8"valid Unicode scalar value<additional message>."},
         {unicode_conversion_error_factory::truncated_sequence(
@@ -3707,20 +3741,20 @@ TEST_CASE(
               static_cast<char8_t>(0x90),
               static_cast<char8_t>(0x80),
               u8'\0'},
-         3, 4
+         unicode_conversion_error::truncated_sequence_sub_error::
+                 expected_4_found_3
          ), u8"The 11th, 12th and 13th code units ([0xF0, 0x90, 0x80]) in the "
          u8"UTF-8 input passed to <function name> (\"<input string>\") form "
          u8"the start of a four-byte sequence. However, the input ended after "
-         u8"the third code unit — 1 further continuation byte was expected but "
+         u8"the third code unit — one further continuation byte was expected but "
          u8"was not present. As the sequence is incomplete, it cannot "
          u8"represent a valid Unicode scalar value<additional message>."},
-
         {unicode_conversion_error_factory::invalid_continuation_byte(
              10, {static_cast<char8_t>(0xC2),
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x00),
               u8'\0'},
-         2, 0
+         0
          ), u8"The 11th and 12th code units ([0xC2, 0x20]) in the UTF-8 input "
          u8"passed to <function name> (\"<input string>\") form the start of a "
          u8"two-byte sequence. The second code unit (0x20) was expected to be "
@@ -3734,7 +3768,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x80),
               u8'\0'},
-         3, 1
+         1
          ), u8"The 11th, 12th and 13th code units ([0xE2, 0x20, 0x80]) in the "
          u8"UTF-8 input passed to <function name> (\"<input string>\") form "
          u8"the start of a three-byte sequence. The second code unit (0x20) "
@@ -3748,7 +3782,7 @@ TEST_CASE(
               static_cast<char8_t>(0x80),
               static_cast<char8_t>(0x20),
               u8'\0'},
-         3, 2
+         2
          ), u8"The 11th, 12th and 13th code units ([0xE2, 0x80, 0x20]) in the "
          u8"UTF-8 input passed to <function name> (\"<input string>\") form "
          u8"the start of a three-byte sequence. The third code unit (0x20) was "
@@ -3762,7 +3796,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x21),
               u8'\0'},
-         3, 3
+         3
          ), u8"The 11th, 12th and 13th code units ([0xE2, 0x20, 0x21]) in the "
          u8"UTF-8 input passed to <function name> (\"<input string>\") form "
          u8"the start of a three-byte sequence. The second and third code "
@@ -3776,7 +3810,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x80),
               static_cast<char8_t>(0x80)},
-         4, 4
+         4
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x20, 0x80, "
          u8"0x80]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The second code "
@@ -3790,7 +3824,7 @@ TEST_CASE(
               static_cast<char8_t>(0x90),
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x80)},
-         4, 5
+         5
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x90, 0x20, "
          u8"0x80]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The third code "
@@ -3804,7 +3838,7 @@ TEST_CASE(
               static_cast<char8_t>(0x90),
               static_cast<char8_t>(0x80),
               static_cast<char8_t>(0x20)},
-         4, 6
+         6
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x90, 0x80, "
          u8"0x20]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The fourth code "
@@ -3817,7 +3851,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x21),
               static_cast<char8_t>(0x80)},
-         4, 7
+         7
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x20, 0x21, "
          u8"0x80]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The second and "
@@ -3831,7 +3865,7 @@ TEST_CASE(
               static_cast<char8_t>(0x90),
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x21)},
-         4, 9
+         9
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x90, 0x20, "
          u8"0x21]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The third and "
@@ -3845,7 +3879,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x80),
               static_cast<char8_t>(0x21)},
-         4, 8
+         8
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x20, 0x80, "
          u8"0x21]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The second and "
@@ -3859,7 +3893,7 @@ TEST_CASE(
               static_cast<char8_t>(0x20),
               static_cast<char8_t>(0x21),
               static_cast<char8_t>(0x22)},
-         4, 10
+         10
          ), u8"The 11th, 12th, 13th and 14th code units ([0xF0, 0x20, 0x21, "
          u8"0x22]) in the UTF-8 input passed to <function name> (\"<input "
          u8"string>\") form the start of a four-byte sequence. The second, "

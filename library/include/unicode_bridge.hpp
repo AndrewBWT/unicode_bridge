@@ -2,49 +2,52 @@
 #include <algorithm>
 #include <array>
 #include <expected>
-#include <iterator>
 #include <optional>
-#include <stdexcept>
 #include <string>
 #include <type_traits>
 
+// ---- Macros ----
 
+// Macro definitions for namespaces.
 #define UNICODE_BRIDGE_NAMESPACE          unicode_bridge
 #define UNICODE_BRIDGE_NAMESPACE_INTERNAL internal
-
 #define UNICODE_BRIDGE_NS_BEGIN        \
     namespace UNICODE_BRIDGE_NAMESPACE \
     {
 #define UNICODE_BRIDGE_NS_END }
-
 #define UNICODE_BRIDGE_INTERNAL_NS_BEGIN        \
     namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL \
     {
 #define UNICODE_BRIDGE_INTERNAL_NS_END }
-template <typename>
-constexpr bool dependent_false = false; // workaround before CWG2518/P2593R1
+
+// Macro for static assert.
 #define UNICODE_BRIDGE_STATIC_ASSERT(type_arg, msg_arg) \
     static_assert(dependent_false<type_arg>, msg_arg);
 
 UNICODE_BRIDGE_NS_BEGIN
+
+// ---- Concepts ----
+
 /*!
- * @brief Describes a character-type that can hold unicode-data. Specifically,
- char8_t, char16_t, char32_t and wchar_t.
+ * @brief Represents fundamental types that represent Unicode characters.
  */
 template <typename CharT>
 concept char_type_is_unicode_c
     = std::same_as<CharT, char8_t> || std::same_as<CharT, char16_t>
       || std::same_as<CharT, char32_t> || std::same_as<wchar_t, CharT>;
-
 /*!
- * @brief Describes a character-type in C++. Specifically, char,
- char8_t, char16_t, char32_t and wchar_t.
+ * @brief Represents fundamental types that are used to encode text - both
+ * Unicode and ASCII.
  */
 template <typename CharT>
 concept is_char_type_c
     = char_type_is_unicode_c<CharT> || std::same_as<CharT, char>;
 
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
+// ---- Forward declarations for templated types ----
+
+// These are declared here so that they can be used in core functions exported
+// by the library.
 /*!
  * @brief Primary template used to obtain the underlying character type of some
  * string-like object.
@@ -85,24 +88,26 @@ struct char_type_of<String_Type>
 
 UNICODE_BRIDGE_INTERNAL_NS_END
 /*!
- * @brief Alias template for obtaining the character type of some string-like
- * object.
- * @tparam T The string-like object type.
+ * @brief Alias template for representing the internal character type of some
+ * string-like object.
+ * @tparam String_Like_Type The string-like object type.
  */
 template <typename String_Like_Type>
 using char_type_of_t = typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::char_type_of<
     String_Like_Type>::type;
-// Forward declaration
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 struct unicode_conversion_error_factory;
-struct unicode_bridge_exception_factory;
 UNICODE_BRIDGE_INTERNAL_NS_END
 
+// ---- Error Types ----
+
 /*!
- * @brief Holds generic unicode errors, specifically those pertaining to the
- * unicode standard.
+ * @brief Represents the basic unicode error type in Unicode bridge,
+ * unicode_conversion_error. It is used as the result from the
+ * unicode_conversion family of functions.
  *
- * It is public as other errors include instances of it.
+ * It includes a set of getters, allowing the user to gather the data concerning
+ * the error.
  */
 struct unicode_conversion_error
 {
@@ -110,7 +115,11 @@ struct unicode_conversion_error
         unicode_conversion_error_factory;
     /*!
      * @brief Enum type describing the various types of encoding erros that can
-     * be found in a unicode string.
+     * be found in a unicode string. unicode_conversion_error uses this enum to
+     * differenetiate between the different errors. The comments show which data
+     * members of unicode_conversion_error are used for that specific error.
+     *
+     * _code and _character_index are used for all errors.
      */
     enum class unicode_conversion_error_code : uint8_t
     {
@@ -120,6 +129,9 @@ struct unicode_conversion_error
          * binary its in the form 0xxxxxxx. If in 2-4 bytes, the first byte is
          * in the form 110xxxxx, 1110xxxx or 11110xxx. If that first byte is not
          * in any of these forms, it is an invalid_leading_byte.
+         *
+         * Uses:
+         * - _u8_code_points (only index 0)
          */
         invalid_leading_byte,
         /*!
@@ -132,6 +144,13 @@ struct unicode_conversion_error
          *
          * If there are insufficient bytes in the string, then it is flagged as
          * a truncated_sequence.
+         *
+         * Uses:
+         * - _u8_code_points (either index 0, indexes {0,1} or indexes {0,1,2}
+         * - _code_points_encountered. Denotes how many elements of
+         * _u8_code_points were used.
+         * - _expected_code_points_size. How many code points should have been
+         * encountered.
          */
         truncated_sequence,
         /*!
@@ -141,6 +160,36 @@ struct unicode_conversion_error
          *
          * If any of these bytes (called continuation bytes) are not in this
          * format, this error is thrown.
+         *
+         *          * Uses:
+         * - _u8_code_points (either indexes {0,1}, {0,1,2} or {0,1,2,3} used)
+         * - _code_points_encountered. How many code points are used.
+         *
+         * - _expected_code_points_size. This is used as an enum for this error.
+         * The values mean the following:
+         *
+         *     meaning: 0 -> 2 byte unicode scalar value. 2nd byte is invalid
+         * continuation byte. 1 -> 3 byte unicode scalar value. 2nd byte is
+         * invalid
+         * continuation byte. 2 -> 3 byte unicode scalar value. 3rd byte is
+         * invalid
+         * continuation byte. 3 -> 3 byte unicode scalar value. 2nd and 3rd byte
+         * are invalid continuation bytes.
+         * 4 -> 4 byte unicode scalar value. 2nd byte is invalid continuation
+         byte.
+         * 5 -> 4 byte unicode scalar value. 3rd byte is invalid continuation
+         byte.
+         * 6 -> 4 byte unicode scalar value. 4th byte is invalid continuation
+         byte.
+         *
+         * 7 -> 4 byte unicode scalar value. 2nd and 3rd byte are invalid
+         * continuation bytes.
+         * 8 -> 4 byte unicode scalar value. 2nd and 4th byte are invalid
+         * continuation bytes.
+         * 9 -> 4 byte unicode scalar value. 3rd and 4th byte
+         * are invalid continuation bytes.
+         * 10 -> 4 byte unicode scalar value. 2nd,
+         * 3rd and 4th byte are invalid continuation bytes.
          */
         invalid_continuation_byte,
         /*!
@@ -215,33 +264,25 @@ struct unicode_conversion_error
          */
         no_error
     };
+    enum class truncated_sequence_sub_error : uint8_t
+    {
+        expected_2_found_1,
+        expected_3_found_1,
+        expected_3_found_2,
+        expected_4_found_1,
+        expected_4_found_2,
+        expected_4_found_3
+    };
 private:
     unicode_conversion_error_code _code;
     std::size_t                   _character_index;
     // Data members for UTF-8 errors.
     std::array<char8_t, 4> _u8_code_points;
-    std::uint8_t           _code_points_encountered;
-    // This data point has a different use when dealing with continuation byte
-    // errors. In that case, it acts like an enum with the following
-    // meaning: 0 -> 2 byte unicode scalar value. 2nd byte is invalid
-    // continuation byte. 1 -> 3 byte unicode scalar value. 2nd byte is invalid
-    // continuation byte. 2 -> 3 byte unicode scalar value. 3rd byte is invalid
-    // continuation byte. 3 -> 3 byte unicode scalar value. 2nd and 3rd byte are
-    // invalid continuation bytes.
-
-    // 4 -> 4 byte unicode scalar value. 2nd byte is invalid continuation byte.
-    // 5 -> 4 byte unicode scalar value. 3rd byte is invalid continuation byte.
-    // 6 -> 4 byte unicode scalar value. 4th byte is invalid continuation byte.
-
-    // 7 -> 4 byte unicode scalar value. 2nd and 3rd byte are invalid
-    // continuation bytes.
-    // 8 -> 4 byte unicode scalar value. 2nd and 4th byte are invalid
-    // continuation bytes.
-    // 9 -> 4 byte unicode scalar value. 3rd and 4th byte
-    // are invalid continuation bytes.
-    // 10 -> 4 byte unicode scalar value. 2nd,
-    // 3rd and 4th byte are invalid continuation bytes.
-    std::uint8_t            _expected_code_points_size;
+    std::uint8_t           _u8_sub_error_code;
+    // std::uint8_t           _code_points_encountered;
+    //  This data point has a different use when dealing with continuation byte
+    //  errors. In that case, it acts like an enum with the following
+    // std::uint8_t            _expected_code_points_size;
     std::array<char16_t, 2> _u16_code_points;
     char32_t                _char32_character;
     bool                    _is_wchar;
@@ -250,11 +291,12 @@ private:
         const unicode_conversion_error_code code_arg,
         const std::size_t                   character_index_arg,
         const std::array<char8_t, 4>&       u8_code_points_arg,
-        const std::uint8_t                  code_points_encountered_arg,
-        const std::uint8_t                  expected_code_points_size_arg,
-        const std::array<char16_t, 2>&      u16_code_points_arg,
-        char32_t                            char32_character_arg,
-        const bool                          is_wchar_arg
+        const std::uint8_t                  u8_sub_error_code_arg,
+        // const std::uint8_t                  code_points_encountered_arg,
+        // const std::uint8_t                  expected_code_points_size_arg,
+        const std::array<char16_t, 2>& u16_code_points_arg,
+        char32_t                       char32_character_arg,
+        const bool                     is_wchar_arg
     ) noexcept;
 public:
     // All getters for internal data.
@@ -266,11 +308,10 @@ public:
     constexpr const std::array<char8_t, 4>&
         u8_code_points() const noexcept;
 
-    constexpr const std::size_t
-        code_points_encountered() const noexcept;
-
-    constexpr const std::size_t
-        expected_code_points_size() const noexcept;
+    constexpr const std::uint8_t u8_sub_error_code() const noexcept
+    {
+        return _u8_sub_error_code;
+    }
 
     constexpr const std::array<char16_t, 2>&
         u16_code_points() const noexcept;
@@ -292,6 +333,10 @@ public:
             const std::optional<std::u8string_view> opt_complete_string_arg
         ) const;
 };
+
+UNICODE_BRIDGE_INTERNAL_NS_BEGIN
+struct unicode_bridge_exception_factory;
+UNICODE_BRIDGE_INTERNAL_NS_END
 
 /*!
  * @brief Generic exception type for the exception throwing functions.
@@ -728,6 +773,9 @@ constexpr std::basic_string<OutputChar>
 // Internal namespace definitions
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 
+template <typename>
+constexpr bool dependent_false = false; // workaround before CWG2518/P2593R1
+
 constexpr bool wchar_is_16_bit = (sizeof(wchar_t) == 2);
 constexpr bool wchar_is_32_bit = (sizeof(wchar_t) == 4);
 /*!
@@ -807,15 +855,14 @@ struct unicode_conversion_error_factory
         truncated_sequence(
             const std::size_t             character_index_arg,
             const std::array<char8_t, 4>& code_points_arg,
-            const std::size_t             code_points_encountered_arg,
-            const std::size_t             expected_code_points_size_arg
+            const unicode_conversion_error::truncated_sequence_sub_error
+                truncated_sequence_error_enum_arg
         ) noexcept;
 
     static constexpr unicode_conversion_error
         invalid_continuation_byte(
             const std::size_t             character_index_arg,
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::size_t             code_points_expected_arg,
             const std::size_t             sub_error_enum_arg
         ) noexcept;
 
@@ -1121,17 +1168,19 @@ constexpr unicode_conversion_error::unicode_conversion_error(
     const unicode_conversion_error_code code_arg,
     const std::size_t                   character_index_arg,
     const std::array<char8_t, 4>&       u8_code_points_arg,
-    const std::uint8_t                  code_points_encountered_arg,
-    const std::uint8_t                  expected_code_points_size_arg,
-    const std::array<char16_t, 2>&      u16_code_points_arg,
-    char32_t                            char32_character_arg,
-    const bool                          is_wchar_arg
+    const std::uint8_t                  u8_sub_error_code_arg,
+    // const std::uint8_t                  code_points_encountered_arg,
+    // const std::uint8_t                  expected_code_points_size_arg,
+    const std::array<char16_t, 2>& u16_code_points_arg,
+    char32_t                       char32_character_arg,
+    const bool                     is_wchar_arg
 ) noexcept
     : _code(code_arg)
     , _character_index(character_index_arg)
     , _u8_code_points(u8_code_points_arg)
-    , _code_points_encountered(code_points_encountered_arg)
-    , _expected_code_points_size(expected_code_points_size_arg)
+    , _u8_sub_error_code(u8_sub_error_code_arg)
+    //, _code_points_encountered(code_points_encountered_arg)
+    //, _expected_code_points_size(expected_code_points_size_arg)
     , _u16_code_points(u16_code_points_arg)
     , _char32_character(char32_character_arg)
     , _is_wchar(is_wchar_arg)
@@ -1155,17 +1204,17 @@ constexpr const std::array<char8_t, 4>&
     return _u8_code_points;
 }
 
-constexpr const std::size_t
-    unicode_conversion_error::code_points_encountered() const noexcept
-{
-    return _code_points_encountered;
-}
+// constexpr const std::size_t
+//    unicode_conversion_error::code_points_encountered() const noexcept
+//{
+//   return _code_points_encountered;
+//}
 
-constexpr const std::size_t
-    unicode_conversion_error::expected_code_points_size() const noexcept
-{
-    return _expected_code_points_size;
-}
+// constexpr const std::size_t
+//     unicode_conversion_error::expected_code_points_size() const noexcept
+//{
+//    return _expected_code_points_size;
+//}
 
 constexpr const std::array<char16_t, 2>&
     unicode_conversion_error::u16_code_points() const noexcept
@@ -1358,56 +1407,148 @@ constexpr std::u8string
     break;
     case truncated_sequence:
     {
+        static constexpr tuple<uint8_t, uint8_t, const char8_t*>
+            truncated_sequence_byte_table[] = {
+                {2,
+                 1, u8" was found to be a valid leading byte, indicating the "
+                 u8"start of a two-byte sequence. However, the input ended "
+                 u8"after the first code unit — one continuation byte was "
+                 u8"expected but was not present. As the sequence is "
+                 u8"incomplete, it cannot represent a valid Unicode scalar "
+                 u8"value"               }, // case 0
+                {3,
+                 1, u8" was found to be a valid leading byte, indicating the "
+                 u8"start of a three-byte sequence. However, the input ended "
+                 u8"after the first code unit — two continuation bytes were "
+                 u8"expected but none were present. As the sequence is "
+                 u8"incomplete, it cannot represent a valid Unicode scalar "
+                 u8"value"               }, // case 1
+                {3,
+                 2, u8" form the start of a three-byte sequence. However, the "
+                 u8"input ended after the second code unit — one further "
+                 u8"continuation byte was expected but was not present. As "
+                 u8"the sequence is incomplete, it cannot represent a valid "
+                 u8"Unicode scalar value"}, // case 2
+                {4,
+                 1, u8" was found to be a valid leading byte, indicating the "
+                 u8"start of a four-byte sequence. However, the input ended "
+                 u8"after the first code unit — three continuation bytes were "
+                 u8"expected but none were present. As the sequence is "
+                 u8"incomplete, it cannot represent a valid Unicode scalar "
+                 u8"value"               }, // case 3
+                {4,
+                 2, u8" form the start of a four-byte sequence. However, the "
+                 u8"input ended after the second code unit — two further "
+                 u8"continuation bytes were expected but none were present. As "
+                 u8"the sequence is incomplete, it cannot represent a valid "
+                 u8"Unicode scalar value"}, // case 4
+                {4,
+                 3, u8" form the start of a four-byte sequence. However, the "
+                 u8"input ended after the third code unit — one further "
+                 u8"continuation byte was expected but was not present. As "
+                 u8"the sequence is incomplete, it cannot represent a valid "
+                 u8"Unicode scalar value"}, // case 5
+        };
+        const auto& [expected_code_points, code_points_encountered, error_str]
+            = truncated_sequence_byte_table[_u8_sub_error_code];
         utf8_begin_str(
-            chars_to_hex(_u8_code_points, _code_points_encountered),
-            _code_points_encountered
+            chars_to_hex(_u8_code_points, code_points_encountered),
+            code_points_encountered
         );
-        const size_t missing
-            = _expected_code_points_size - _code_points_encountered;
-        msg.append(
-            _code_points_encountered == 1
-                ? u8" was found to be a valid leading byte, indicating "
-                  u8"the start of a "
-                : u8" form the start of a "
-        );
-        msg.append(number_as_string(_expected_code_points_size));
-        msg.append(u8"-byte sequence. However, the input ended after the ");
-        msg.append(placement_as_string(_code_points_encountered));
-        msg.append(u8" code unit — ");
-        msg.append(to_u8string(std::to_string(missing)));
-        if (_code_points_encountered > 1)
-        {
-            msg.append(u8" further");
-        }
-        [[assume(missing > 0)]];
-        msg.append(
-            missing == 1
-                ? u8" continuation byte was expected but was not present."
-                : u8" continuation bytes were expected but none were present."
-        );
-        msg.append(u8" As the sequence is incomplete, it cannot represent a "
-                   u8"valid Unicode scalar value");
+        msg.append(error_str);
     }
     break;
     case invalid_continuation_byte:
     {
-        static constexpr tuple<size_t, const char8_t*, array<size_t, 3>, size_t>
+        static constexpr tuple<
+            uint8_t,
+            array<size_t, 3>,
+            size_t,
+            const char8_t*,
+            const char8_t*,
+            const char8_t*>
             continuation_byte_error_table[] = {
-                {2, u8"second",                   {1, 0, 0}, 1}, // case 0
-                {3, u8"second",                   {1, 0, 0}, 1}, // case 1
-                {3, u8"third",                    {2, 0, 0}, 1}, // case 2
-                {3, u8"second and third",         {1, 2, 0}, 2}, // case 3
-                {4, u8"second",                   {1, 0, 0}, 1}, // case 4
-                {4, u8"third",                    {2, 0, 0}, 1}, // case 5
-                {4, u8"fourth",                   {3, 0, 0}, 1}, // case 6
-                {4, u8"second and third",         {1, 2, 0}, 2}, // case 7
-                {4, u8"second and fourth",        {1, 3, 0}, 2}, // case 8
-                {4, u8"third and fourth",         {2, 3, 0}, 2}, // case 9
-                {4, u8"second, third and fourth", {1, 2, 3}, 3}, // case 10
+                {2,
+                 {1, 0, 0},
+                 1, u8" form the start of a two-byte sequence. The second code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 0
+                {3,
+                 {1, 0, 0},
+                 1, u8" form the start of a three-byte sequence. The second code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 1
+                {3,
+                 {2, 0, 0},
+                 1, u8" form the start of a three-byte sequence. The third code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 2
+                {3,
+                 {1, 2, 0},
+                 2, u8" form the start of a three-byte sequence. The second and "
+                 u8"third code units (",      u8") were expected to be continuation bytes, but were not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot represent "
+                 u8"a valid Unicode scalar value"               }, // case 3
+                {4,
+                 {1, 0, 0},
+                 1, u8" form the start of a four-byte sequence. The second code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 4
+                {4,
+                 {2, 0, 0},
+                 1, u8" form the start of a four-byte sequence. The third code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 5
+                {4,
+                 {3, 0, 0},
+                 1, u8" form the start of a four-byte sequence. The fourth code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot represent a "
+                 u8"valid Unicode scalar value"                             }, // case 6
+                {4,
+                 {1, 2, 0},
+                 2, u8" form the start of a four-byte sequence. The second and "
+                 u8"third code units (",      u8") were expected to be continuation bytes, but were not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot represent "
+                 u8"a valid Unicode scalar value"               }, // case 7
+                {4,
+                 {1, 3, 0},
+                 2, u8" form the start of a four-byte sequence. The second and "
+                 u8"fourth code units (",     u8") were expected to be continuation bytes, but were not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence cannot represent "
+                 u8"a valid Unicode scalar value"              }, // case 8
+                {4,
+                 {2, 3, 0},
+                 2, u8" form the start of a four-byte sequence. The third and "
+                 u8"fourth code units (",      u8") were expected to be continuation bytes, but were not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot represent "
+                 u8"a valid Unicode scalar value"               }, // case 9
+                {4,
+                 {1, 2, 3},
+                 3, u8" form the start of a four-byte sequence. The second, third "
+                 u8"and fourth code units (", u8") were expected to be continuation bytes, but were not — a "
+                 u8"valid continuation byte must be inclusively between 0x80 "
+                 u8"and 0xBF. As ", u8"all three are outside this range, the sequence cannot "
+                 u8"represent a valid Unicode scalar value"}, // case 10
         };
 
-        const auto& [expected_code_point_size, names_of_invalid_continuation_bytes, invalid_code_point_indexes, numb_invalid_code_points]
-            = continuation_byte_error_table[_expected_code_points_size];
+        const auto& [expected_code_point_size, invalid_code_point_indexes, numb_invalid_code_points, str_1, str_2, str_3]
+            = continuation_byte_error_table[_u8_sub_error_code];
         u8string invalid_code_points;
         for (size_t idx{0}; idx < numb_invalid_code_points; ++idx)
         {
@@ -1423,42 +1564,14 @@ constexpr std::u8string
             ));
         }
         utf8_begin_str(
-            chars_to_hex(_u8_code_points, _code_points_encountered),
-            _code_points_encountered
+            chars_to_hex(_u8_code_points, expected_code_point_size),
+            expected_code_point_size
         );
-        msg.append(u8" form the start of a ");
-        msg.append(number_as_string(expected_code_point_size));
-        msg.append(u8"-byte sequence. The ");
-        msg.append(names_of_invalid_continuation_bytes);
-        msg.append(
-            numb_invalid_code_points > 1 ? u8" code units (" : u8" code unit ("
-        );
+        msg.append(str_1);
         msg.append(invalid_code_points);
-        msg.append(u8") ");
-        msg.append(
-            numb_invalid_code_points > 1
-                ? u8"were expected to be continuation bytes, but were not"
-                : u8"was expected to be a continuation byte, but was not"
-        );
-        msg.append(u8" — a valid continuation byte must be inclusively between "
-                   u8"0x80 and 0xBF. ");
-        switch (numb_invalid_code_points)
-        {
-        case 1:
-            msg.append(u8"As ");
-            msg.append(invalid_code_points);
-            msg.append(u8" falls outside this range, the sequence cannot "
-                       u8"represent a valid Unicode scalar value");
-            break;
-        case 2:
-            msg.append(u8"As both are outside this range, the sequence cannot "
-                       u8"represent a valid Unicode scalar value");
-            break;
-        case 3:
-            msg.append(u8"As all three are outside this range, the sequence "
-                       u8"cannot represent a valid Unicode scalar value");
-            break;
-        }
+        msg.append(str_2);
+        msg.append(numb_invalid_code_points == 1 ? invalid_code_points : u8"");
+        msg.append(str_3);
     }
     break;
     case overlong_encoding:
@@ -1470,18 +1583,20 @@ constexpr std::u8string
         auto char_as_u8
             = unicode_conversion_with_exception<char8_t>(_char32_character);
         utf8_begin_str(
-            chars_to_hex(_u8_code_points, _code_points_encountered),
-            _code_points_encountered
+            chars_to_hex(_u8_code_points, _u8_sub_error_code),
+            _u8_sub_error_code
         );
         msg.append(u8" form a ");
-        msg.append(number_as_string(_code_points_encountered));
+        msg.append(number_as_string(_u8_sub_error_code));
         msg.append(u8"-byte sequence encoding ");
         msg.append(codepoint_as_hex);
         msg.append(u8". This is an overlong encoding — ");
         msg.append(codepoint_as_hex);
         msg.append(u8" can be represented using ");
         if (char_as_u8.size() == 1)
+        {
             msg.append(u8"a single byte ");
+        }
         else
         {
             msg.append(number_as_string(char_as_u8.size()));
@@ -1502,11 +1617,11 @@ constexpr std::u8string
                 _char32_character, u8"U+"
             );
         utf8_begin_str(
-            chars_to_hex(_u8_code_points, _code_points_encountered),
-            _code_points_encountered
+            chars_to_hex(_u8_code_points, _u8_sub_error_code),
+            _u8_sub_error_code
         );
         msg.append(u8" form a ");
-        msg.append(number_as_string(_code_points_encountered));
+        msg.append(number_as_string(_u8_sub_error_code));
         msg.append(u8"-byte sequence encoding ");
         msg.append(codepoint_as_hex);
         msg.append(u8". However, ");
@@ -2684,8 +2799,7 @@ constexpr unicode_conversion_error
         unicode_conversion_error::unicode_conversion_error_code::no_error,
         std::numeric_limits<std::size_t>::max(),
         {u8'\0', u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {u'\0', u'\0'},
         U'\0',
         false
@@ -2703,8 +2817,7 @@ constexpr unicode_conversion_error
             invalid_leading_byte,
         character_index_arg,
         {code_points_arg, u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {u'\0', u'\0'},
         U'\0',
         false
@@ -2715,8 +2828,8 @@ constexpr unicode_conversion_error
     unicode_conversion_error_factory::truncated_sequence(
         const std::size_t             character_index_arg,
         const std::array<char8_t, 4>& code_points_arg,
-        const std::size_t             code_points_encountered_arg,
-        const std::size_t             expected_code_points_size_arg
+        const unicode_conversion_error::truncated_sequence_sub_error
+            truncated_sequence_error_enum_arg
     ) noexcept
 {
     return unicode_conversion_error(
@@ -2724,8 +2837,7 @@ constexpr unicode_conversion_error
             truncated_sequence,
         character_index_arg,
         code_points_arg,
-        code_points_encountered_arg,
-        expected_code_points_size_arg,
+        std::to_underlying(truncated_sequence_error_enum_arg),
         {u'\0', u'\0'},
         U'\0',
         false
@@ -2736,7 +2848,6 @@ constexpr unicode_conversion_error
     unicode_conversion_error_factory::invalid_continuation_byte(
         const std::size_t             character_index_arg,
         const std::array<char8_t, 4>& u8_code_points_arg,
-        const std::size_t             code_points_expected_arg,
         const std::size_t             sub_error_enum_arg
     ) noexcept
 {
@@ -2745,7 +2856,6 @@ constexpr unicode_conversion_error
             invalid_continuation_byte,
         character_index_arg,
         u8_code_points_arg,
-        code_points_expected_arg,
         sub_error_enum_arg,
         {u'\0', u'\0'},
         U'\0',
@@ -2767,7 +2877,6 @@ constexpr unicode_conversion_error
         character_index_arg,
         u8_code_points_arg,
         code_points_encountered_arg,
-        std::numeric_limits<std::size_t>::max(),
         {u'\0', u'\0'},
         char32_character_arg,
         false
@@ -2789,7 +2898,6 @@ constexpr unicode_conversion_error
         character_index_arg,
         u8_code_points_arg,
         code_points_encountered_arg,
-        std::numeric_limits<std::size_t>::max(),
         {u'\0', u'\0'},
         char32_character_arg,
         false
@@ -2808,8 +2916,7 @@ constexpr unicode_conversion_error
             high_surrogate_then_end_of_stream,
         character_index_arg,
         {u8'\0', u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {char16_character_arg, u'\0'},
         U'\0',
         is_wchar_arg
@@ -2830,8 +2937,7 @@ constexpr unicode_conversion_error
             high_surrogate_not_followed_by_low_surrogate,
         character_index_arg,
         {u8'\0', u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {char16_first_char_arg, char16_second_char_arg},
         U'\0',
         is_wchar_arg
@@ -2850,8 +2956,7 @@ constexpr unicode_conversion_error
             unexpected_low_surrogate,
         character_index_arg,
         {u8'\0', u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {char16_character_arg, u'\0'},
         U'\0',
         is_wchar_arg
@@ -2870,8 +2975,7 @@ constexpr unicode_conversion_error
             invalid_utf32_code_point,
         character_index_arg,
         {u8'\0', u8'\0', u8'\0', u8'\0'},
-        std::numeric_limits<std::size_t>::max(),
-        std::numeric_limits<std::size_t>::max(),
+        std::numeric_limits<std::uint8_t>::max(),
         {u'\0', u'\0'},
         char32_character_arg,
         is_wchar_arg
@@ -3483,6 +3587,12 @@ constexpr std::conditional_t<
             {
                 if constexpr (Return_Reason)
                 {
+                    static constexpr uint8_t sub_error_offsets[] = {0, 1, 3};
+                    const auto               sub_error           = static_cast<
+                                                unicode_conversion_error::truncated_sequence_sub_error>(
+                        sub_error_offsets[code_point_size]
+                        + (code_units_processed_remaining - 1)
+                    );
                     std::array<char8_t, 4> code_units
                         = {static_cast<char8_t>(byte_1),
                            code_units_processed_remaining >= 2
@@ -3496,8 +3606,7 @@ constexpr std::conditional_t<
                         unicode_conversion_error_factory::truncated_sequence(
                             std::distance(iterator_begin_arg, local_iterator),
                             code_units,
-                            code_units_processed_remaining,
-                            code_point_size + 2
+                            sub_error
                         )
                     );
                 }
@@ -3524,6 +3633,80 @@ constexpr std::conditional_t<
                                 ? static_cast<char8_t>(*(iterator_arg + 3))
                                 : u8'\0',
                         };
+                        uint8_t sub_error_enum;
+                        switch (code_point_size)
+                        {
+                        case 0:
+                            sub_error_enum = 0;
+                            break;
+                        case 1:
+                            // 2nd is invalid.
+                            if (idx == 0)
+                            {
+                                // And 3rd is invalid.
+                                if ((*(local_iterator + 1) & 0b1100'0000)
+                                    != 0b1000'0000)
+                                {
+                                    sub_error_enum = 3;
+                                }
+                                else
+                                {
+                                    sub_error_enum = 1;
+                                }
+                            }
+                            else
+                            {
+                                sub_error_enum = 2;
+                            }
+                            break;
+                        case 2:
+                            // 2nd is invalid.
+                            if (idx == 0)
+                            {
+                                // And 3rd is invalid.
+                                if ((*(local_iterator + 1) & 0b1100'0000)
+                                    != 0b1000'0000)
+                                {
+                                    if ((*(local_iterator + 2) & 0b1100'0000)
+                                        != 0b1000'0000)
+                                    {
+                                        sub_error_enum = 10;
+                                    }
+                                    else
+                                    {
+                                        sub_error_enum = 7;
+                                    }
+                                }
+                                else
+                                {
+                                    if ((*(local_iterator + 2) & 0b1100'0000)
+                                        != 0b1000'0000)
+                                    {
+                                        sub_error_enum = 8;
+                                    }
+                                    else
+                                    {
+                                        sub_error_enum = 4;
+                                    }
+                                }
+                            }
+                            else if (idx == 1)
+                            {
+                                if ((*(local_iterator + 1) & 0b1100'0000)
+                                    != 0b1000'0000)
+                                {
+                                    sub_error_enum = 9;
+                                }
+                                else
+                                {
+                                    sub_error_enum = 5;
+                                }
+                            }
+                            else
+                            {
+                                sub_error_enum = 6;
+                            }
+                        }
                         return unexpected(unicode_conversion_error_factory::
                                               invalid_continuation_byte(
                                                   std::distance(
@@ -3532,8 +3715,7 @@ constexpr std::conditional_t<
                                                   ) - idx
                                                       - 1,
                                                   code_units,
-                                                  code_point_size + 2,
-                                                  idx + 2
+                                                  sub_error_enum
                                               ));
                     }
                     else
