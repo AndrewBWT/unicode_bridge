@@ -273,16 +273,26 @@ struct unicode_conversion_error
         expected_4_found_2,
         expected_4_found_3
     };
+    enum class invalid_continuation_byte_sub_error : uint8_t
+    {
+        size_2_invalid_indexes_1,
+        size_3_invalid_indexes_1,
+        size_3_invalid_indexes_2,
+        size_3_invalid_indexes_1_2,
+        size_4_invalid_indexes_1,
+        size_4_invalid_indexes_2,
+        size_4_invalid_indexes_3,
+        size_4_invalid_indexes_1_2,
+        size_4_invalid_indexes_1_3,
+        size_4_invalid_indexes_2_3,
+        size_4_invalid_indexes_1_2_3,
+    };
 private:
     unicode_conversion_error_code _code;
     std::size_t                   _character_index;
     // Data members for UTF-8 errors.
-    std::array<char8_t, 4> _u8_code_points;
-    std::uint8_t           _u8_sub_error_code;
-    // std::uint8_t           _code_points_encountered;
-    //  This data point has a different use when dealing with continuation byte
-    //  errors. In that case, it acts like an enum with the following
-    // std::uint8_t            _expected_code_points_size;
+    std::array<char8_t, 4>  _u8_code_points;
+    std::uint8_t            _u8_sub_error_code;
     std::array<char16_t, 2> _u16_code_points;
     char32_t                _char32_character;
     bool                    _is_wchar;
@@ -292,11 +302,9 @@ private:
         const std::size_t                   character_index_arg,
         const std::array<char8_t, 4>&       u8_code_points_arg,
         const std::uint8_t                  u8_sub_error_code_arg,
-        // const std::uint8_t                  code_points_encountered_arg,
-        // const std::uint8_t                  expected_code_points_size_arg,
-        const std::array<char16_t, 2>& u16_code_points_arg,
-        char32_t                       char32_character_arg,
-        const bool                     is_wchar_arg
+        const std::array<char16_t, 2>&      u16_code_points_arg,
+        char32_t                            char32_character_arg,
+        const bool                          is_wchar_arg
     ) noexcept;
 public:
     // All getters for internal data.
@@ -308,7 +316,8 @@ public:
     constexpr const std::array<char8_t, 4>&
         u8_code_points() const noexcept;
 
-    constexpr const std::uint8_t u8_sub_error_code() const noexcept
+    constexpr const std::uint8_t
+        u8_sub_error_code() const noexcept
     {
         return _u8_sub_error_code;
     }
@@ -863,7 +872,8 @@ struct unicode_conversion_error_factory
         invalid_continuation_byte(
             const std::size_t             character_index_arg,
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::size_t             sub_error_enum_arg
+            const unicode_conversion_error::invalid_continuation_byte_sub_error
+                sub_error_enum_arg
         ) noexcept;
 
     static constexpr unicode_conversion_error
@@ -1534,10 +1544,10 @@ constexpr std::u8string
                 {4,
                  {2, 3, 0},
                  2, u8" form the start of a four-byte sequence. The third and "
-                 u8"fourth code units (",      u8") were expected to be continuation bytes, but were not — a "
+                 u8"fourth code units (",     u8") were expected to be continuation bytes, but were not — a "
                  u8"valid continuation byte must be inclusively between 0x80 "
-                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot represent "
-                 u8"a valid Unicode scalar value"               }, // case 9
+                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence cannot represent "
+                 u8"a valid Unicode scalar value"              }, // case 9
                 {4,
                  {1, 2, 3},
                  3, u8" form the start of a four-byte sequence. The second, third "
@@ -2848,7 +2858,8 @@ constexpr unicode_conversion_error
     unicode_conversion_error_factory::invalid_continuation_byte(
         const std::size_t             character_index_arg,
         const std::array<char8_t, 4>& u8_code_points_arg,
-        const std::size_t             sub_error_enum_arg
+        const unicode_conversion_error::invalid_continuation_byte_sub_error
+            sub_error_enum_arg
     ) noexcept
 {
     return unicode_conversion_error(
@@ -2856,7 +2867,7 @@ constexpr unicode_conversion_error
             invalid_continuation_byte,
         character_index_arg,
         u8_code_points_arg,
-        sub_error_enum_arg,
+        std::to_underlying(sub_error_enum_arg),
         {u'\0', u'\0'},
         U'\0',
         false
@@ -3536,6 +3547,10 @@ constexpr std::conditional_t<
     {
         auto       local_iterator{iterator_arg};
         const auto byte_1{*local_iterator};
+        auto       is_continuation_byte = [](const char8_t char_arg)
+        {
+            return (char_arg & 0b1100'0000) != 0b1000'0000;
+        };
         if (not (is_valid_ascii(byte_1)))
         {
             constexpr array<char32_t, 3> and_array{
@@ -3619,7 +3634,7 @@ constexpr std::conditional_t<
             {
                 ++local_iterator;
                 const auto byte_n{*local_iterator};
-                if ((byte_n & 0b1100'0000) != 0b1000'0000)
+                if (is_continuation_byte(byte_n))
                 {
                     if constexpr (Return_Reason)
                     {
@@ -3633,79 +3648,68 @@ constexpr std::conditional_t<
                                 ? static_cast<char8_t>(*(iterator_arg + 3))
                                 : u8'\0',
                         };
-                        uint8_t sub_error_enum;
+                        using enum unicode_conversion_error::
+                            invalid_continuation_byte_sub_error;
+                        unicode_conversion_error::
+                            invalid_continuation_byte_sub_error sub_error;
                         switch (code_point_size)
                         {
                         case 0:
-                            sub_error_enum = 0;
+                            sub_error = size_2_invalid_indexes_1;
                             break;
                         case 1:
-                            // 2nd is invalid.
                             if (idx == 0)
                             {
-                                // And 3rd is invalid.
-                                if ((*(local_iterator + 1) & 0b1100'0000)
-                                    != 0b1000'0000)
-                                {
-                                    sub_error_enum = 3;
-                                }
-                                else
-                                {
-                                    sub_error_enum = 1;
-                                }
+                                sub_error
+                                    = is_continuation_byte(*(local_iterator + 1)
+                                      )
+                                          ? size_3_invalid_indexes_1_2
+                                          : size_3_invalid_indexes_1;
                             }
                             else
                             {
-                                sub_error_enum = 2;
+                                sub_error = size_3_invalid_indexes_2;
                             }
                             break;
                         case 2:
-                            // 2nd is invalid.
                             if (idx == 0)
                             {
-                                // And 3rd is invalid.
-                                if ((*(local_iterator + 1) & 0b1100'0000)
-                                    != 0b1000'0000)
+                                const bool third_invalid
+                                    = is_continuation_byte(*(local_iterator + 1)
+                                    );
+                                const bool fourth_invalid
+                                    = is_continuation_byte(*(local_iterator + 2)
+                                    );
+                                if (third_invalid && fourth_invalid)
                                 {
-                                    if ((*(local_iterator + 2) & 0b1100'0000)
-                                        != 0b1000'0000)
-                                    {
-                                        sub_error_enum = 10;
-                                    }
-                                    else
-                                    {
-                                        sub_error_enum = 7;
-                                    }
+                                    sub_error = size_4_invalid_indexes_1_2_3;
+                                }
+                                else if (third_invalid)
+                                {
+                                    sub_error = size_4_invalid_indexes_1_2;
+                                }
+                                else if (fourth_invalid)
+                                {
+                                    sub_error = size_4_invalid_indexes_1_3;
                                 }
                                 else
                                 {
-                                    if ((*(local_iterator + 2) & 0b1100'0000)
-                                        != 0b1000'0000)
-                                    {
-                                        sub_error_enum = 8;
-                                    }
-                                    else
-                                    {
-                                        sub_error_enum = 4;
-                                    }
+                                    sub_error = size_4_invalid_indexes_1;
                                 }
                             }
                             else if (idx == 1)
                             {
-                                if ((*(local_iterator + 1) & 0b1100'0000)
-                                    != 0b1000'0000)
-                                {
-                                    sub_error_enum = 9;
-                                }
-                                else
-                                {
-                                    sub_error_enum = 5;
-                                }
+                                sub_error
+                                    = is_continuation_byte(*(local_iterator + 1)
+                                      )
+                                          ? size_4_invalid_indexes_2_3
+                                          : size_4_invalid_indexes_2;
                             }
                             else
                             {
-                                sub_error_enum = 6;
+                                sub_error = size_4_invalid_indexes_3;
                             }
+                            break;
                         }
                         return unexpected(unicode_conversion_error_factory::
                                               invalid_continuation_byte(
@@ -3715,7 +3719,7 @@ constexpr std::conditional_t<
                                                   ) - idx
                                                       - 1,
                                                   code_units,
-                                                  sub_error_enum
+                                                  sub_error
                                               ));
                     }
                     else
