@@ -2653,12 +2653,12 @@ template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 2)
 constexpr T low_surrogate_upper_value() noexcept;
 
-inline std::u8string
+constexpr std::u8string
     to_u8string(const std::string_view str_arg);
 
 template <typename T>
 requires std::unsigned_integral<T>
-std::u8string
+constexpr std::u8string
     positive_integer_to_placement(const T number_arg) noexcept;
 template <typename WCharT = wchar_t>
 constexpr auto
@@ -3037,7 +3037,7 @@ constexpr std::u8string
     represent_char_as_hex_for_printing(const T char_arg) noexcept;
 
 template <typename T>
-inline std::wstring
+constexpr std::wstring
     cast_unicode_string_to_wstring(const T str_arg_view);
 
 template <typename T>
@@ -6032,7 +6032,7 @@ constexpr T low_surrogate_upper_value() noexcept
     return T{0xDFFF};
 }
 
-inline std::u8string
+constexpr std::u8string
     to_u8string(
         const std::string_view str_arg
     )
@@ -6044,7 +6044,7 @@ inline std::u8string
 
 template <typename T>
 requires std::unsigned_integral<T>
-inline std::u8string
+constexpr std::u8string
     positive_integer_to_placement(
         const T number_arg
     ) noexcept
@@ -7410,7 +7410,7 @@ constexpr std::u8string
 }
 
 template <typename T>
-inline std::wstring
+constexpr std::wstring
     cast_unicode_string_to_wstring(
         const T str_arg_view
     )
