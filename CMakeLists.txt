@@ -105,5 +105,5 @@ endif()
 
 # Enable examples if required
 if(UNICODE_BRIDGE_ENABLE_EXAMPLES)
-#  add_subdirectory(examples)
+  add_subdirectory(examples)
 endif()

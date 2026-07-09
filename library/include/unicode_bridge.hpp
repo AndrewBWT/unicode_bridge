@@ -1297,7 +1297,116 @@ public:
         error() const noexcept;
 };
 
-// ---- Expected functions ----
+struct string_sink
+{
+    std::string& _str;
+
+    void
+        put(
+            char char_arg
+        ) noexcept
+    {
+        _str.push_back(char_arg);
+    }
+
+    void
+        write(
+            const char* char_star_arg,
+            std::size_t n_chars_to_append_arg
+        ) noexcept
+    {
+        _str.append(char_star_arg, n_chars_to_append_arg);
+    }
+};
+
+struct ostream_sink
+{
+    std::ostream& _stream;
+
+    void
+        put(
+            char char_arg
+        ) noexcept
+    {
+        _stream.put(char_arg);
+    }
+
+    void
+        write(
+            const char* char_star_arg,
+            std::size_t n_chars_to_append_arg
+        ) noexcept
+    {
+        _stream.write(char_star_arg, n_chars_to_append_arg);
+    }
+};
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+struct unicode_print;
+
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+std::ostream&
+    operator<<(std::ostream& os, const unicode_print<CharT>& w);
+
+// ---- unicode_print object
+/*!
+ * @brief Object used to make printing Unicode characters using std::cout
+ * easier.
+ *
+ * std::cout only works with std::strings. By casting a std::u8string to a
+ * std::string, a std::u8string's bytes can be sent to the console. Assuming the
+ * console understands Unicode, the Unicode strings can then be printed.
+ *
+ * Typically this code looks something like this
+ *
+ * std::cout << reinterpret_cast<const char*>(str.data()) << std::endl;
+ *
+ * This object streamlines this, while also providing internal lossless
+ * conversions for std::u16strings, std::u32strings and std::wstrings.
+ *
+ * To be clear about "lossess conversions", if a UTF-16 code point is
+ * invalid (e.g. single surrogate value on its own), it is encoded as a UTF-8
+ * byte sequence and just printed - it will not be rejected. This is the same
+ * for UTF-32 strings.
+ *
+ * The only case when this isn't true is when a Unicode scalar value is outside
+ * the Unicode range - so it cannot be encoded as a UTF-8 string. In those
+ * instances, it is replaced with the Unicode scalar value U+FFFD.
+ *
+ * str() will allow you to use the actual std::string created as a result.
+ *
+ * Be careful with unicode_print's use, as it assumes it does not own the
+ * argument given. If the original std::basic_string used to initialise it goes
+ * out of scope, it then has undefined behaviour.
+ *
+ * @tparam CharT Internal Unicode character type.
+ */
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+struct unicode_print
+{
+private:
+    std::basic_string_view<CharT> _str;
+    template <typename Sink>
+    requires (std::same_as<Sink, ostream_sink> || std::same_as<Sink, string_sink>)
+    constexpr void
+        stream_impl(Sink& sink_arg) const;
+public:
+    constexpr explicit unicode_print(const std::basic_string_view<CharT> str_arg
+    ) noexcept;
+    constexpr std::string
+        str() const;
+    friend std::ostream&
+        operator<< <CharT>(std::ostream& os, const unicode_print& w);
+};
+
+unicode_print(std::u8string_view) -> unicode_print<char8_t>;
+unicode_print(std::u16string_view) -> unicode_print<char16_t>;
+unicode_print(std::u32string_view) -> unicode_print<char32_t>;
+unicode_print(std::wstring_view) -> unicode_print<wchar_t>;
+
+// ---- Exported functions ----
 // ---- convert_unicode_to_ascii and related functions
 /*!
  * @brief Converts a Unicode string to an ASCII string.
@@ -3977,6 +4086,148 @@ constexpr const Error_Type&
     unicode_bridge_exception<Error_Type>::error() const noexcept
 {
     return _error;
+}
+
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+template <typename Sink>
+requires (std::same_as<Sink, ostream_sink> || std::same_as<Sink, string_sink>)
+constexpr void
+    unicode_print<CharT>::stream_impl(
+        Sink& sinkg_arg
+    ) const
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    auto char32_to_stream = [&](const char32_t char_arg)
+    {
+        if (char_arg > 0x10'FFFF)
+        {
+            sinkg_arg.write(reinterpret_cast<const char*>(u8"\uFFFD"), 3);
+        }
+        else if (char_arg <= 0x7F)
+        {
+            sinkg_arg.put(static_cast<char>(char_arg));
+        }
+        else if (char_arg <= 0x7FF)
+        {
+            sinkg_arg.put(static_cast<char>(0xC0 | (char_arg >> 6)));
+            sinkg_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
+        }
+        else if (char_arg <= 0xFFFF)
+        {
+            sinkg_arg.put(static_cast<char>(0xE0 | (char_arg >> 12)));
+            sinkg_arg.put(static_cast<char>(0x80 | ((char_arg >> 6) & 0x3F)));
+            sinkg_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
+        }
+        else
+        {
+            sinkg_arg.put(static_cast<char>(0xF0 | (char_arg >> 18)));
+            sinkg_arg.put(static_cast<char>(0x80 | ((char_arg >> 12) & 0x3F)));
+            sinkg_arg.put(static_cast<char>(0x80 | ((char_arg >> 6) & 0x3F)));
+            sinkg_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
+        }
+    };
+    auto stream_u16 = [&](const auto str_arg)
+    {
+        auto       it  = str_arg.begin();
+        const auto end = str_arg.end();
+        while (it != end)
+        {
+            const char16_t unit = *it++;
+            if (unit >= 0xD800 && unit <= 0xDBFF)
+            {
+                // High surrogate -- look for following low surrogate
+                if (it != end)
+                {
+                    const char16_t next = *it;
+                    if (next >= 0xDC00 && next <= 0xDFFF)
+                    {
+                        // Valid pair -- decode to char32_t and encode as
+                        // UTF-8
+                        const char32_t cp
+                            = 0x1'0000
+                              + ((static_cast<char32_t>(unit) - 0xD800) << 10)
+                              + (static_cast<char32_t>(next) - 0xDC00);
+                        char32_to_stream(cp);
+                        ++it;
+                        continue;
+                    }
+                }
+                // Lone high surrogate -- encode mechanically
+                char32_to_stream(static_cast<char32_t>(unit));
+            }
+            else
+            {
+                // BMP character or lone low surrogate -- encode
+                // mechanically
+                char32_to_stream(static_cast<char32_t>(unit));
+            }
+        }
+    };
+    auto stream_u32 = [&](const auto str_arg)
+    {
+        for (auto& character : str_arg)
+        {
+            char32_to_stream(character);
+        }
+    };
+    if constexpr (same_as<char16_t, CharT>)
+    {
+        stream_u16(_str);
+    }
+     else if constexpr (is_wchar_and_16_bit_c<CharT>)
+     {
+        auto u16_str = cast_wstring_to_unicode_string(_str);
+        stream_u16(u16_str);
+     }
+    else if constexpr (same_as<char32_t, CharT>)
+    {
+        stream_u32(_str);
+    }
+    else if constexpr (is_wchar_and_32_bit_c<CharT>)
+    {
+        auto u32_str = cast_wstring_to_unicode_string(_str);
+        stream_u32(u32_str);
+    }
+    else if constexpr (same_as<char8_t, CharT>)
+    {
+        sinkg_arg.write(
+            reinterpret_cast<const char*>(_str.data()), _str.size()
+        );
+    }
+}
+
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+constexpr unicode_print<CharT>::unicode_print(
+    const std::basic_string_view<CharT> str_arg
+) noexcept
+    : _str(str_arg)
+{}
+
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+constexpr std::string
+    unicode_print<CharT>::str() const
+{
+    std::string rv;
+    string_sink sink{rv};
+    stream_impl(sink);
+    return rv;
+}
+
+template <typename CharT>
+requires char_type_is_unicode_c<CharT>
+inline std::ostream&
+    operator<<(
+        std::ostream&               os,
+        const unicode_print<CharT>& w
+    )
+{
+    ostream_sink sink{os};
+    w.stream_impl(sink);
+    return os;
 }
 
 template <typename Arg_Type, typename String_Type>
