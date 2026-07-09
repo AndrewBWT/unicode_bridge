@@ -23,16 +23,18 @@ int
 
     std::string str1 = unicode_print(u8"unicode_print doesn't own the strings").str();
     std::cout << str1 << std::endl;
-
-    auto result = convert_unicode_to_ascii(u8"hello 😀");
-    if (result.has_value())
+    // convert_unicode_to_ascii examples
+    auto result_1 = convert_unicode_to_ascii(u8"hello 😀");
+    if (result_1.has_value())
     {
-        std::cout << result.value() << std::endl;
+        std::cout << result_1.value() << std::endl;
     }
     else
     {
-        std::cout << unicode_print(result.error().message()) << std::endl;
+        std::cout << unicode_print(result_1.error().message()) << std::endl;
     }
-    auto kx = unicode_print(u8"sv").str();
+    auto result_u16 = convert_unicode_to_ascii(u'h');
+    auto result_u32 = convert_unicode_to_ascii_with_exception(U"hello");
+    auto result_wchar = convert_unicode_to_ascii_with_exception(L'h');
 
 }

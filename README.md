@@ -1,6 +1,9 @@
 # unicode_bridge
 
-A primarily `constexpr` C++23 library for Unicode conversion and validation.
+A C++ library for Unicode conversion and validation.
+
+- Primarily `constexpr`, C++23
+- Contains detailed error messages.
 
 ## Requirements
 
@@ -31,11 +34,11 @@ Unicode bridge has a simple set of exported functions. There are several version
 
 ### `unicode_print` object
 
-`unicode_print` is an object used to facilitate the printing of Unicode characters through `std::cout` through an overload of `operator<<`. 
+`unicode_print` is an object used to facilitate the printing of Unicode characters through `std::cout`, using an overload of `operator<<`. 
 
-To be very clear, its premise is simple; if the Unicode string is not in UTF-8 then convert to UTF-8. Afterwards, cast the UTF-8 string to a `std::string` object, then print through `std::cout`. If the environment is set up to process UTF-8, then the correct characters should be printed to the console.
+To be very clear, the premise of the object is simple; if the Unicode string is not in UTF-8 then convert it to UTF-8. Afterwards, cast the UTF-8 string to a `std::string` object, then print it using `std::cout`. If the environment is set up to process UTF-8, then the correct characters should be printed to the console.
 
-`unicode_print` also includes a `str()` function that allows the user to construct the string, instead of it being sent to `std::cout`. 
+`unicode_print` also includes a `str()` function that allows the user to construct the `std::string` object, instead of having it sent to `std::cout`. 
 
 ```cpp
 std::cout << unicode_print(u8"Hello World! 😀") << std::endl;
@@ -49,49 +52,45 @@ std::cout << str1 << std::endl;
 
 Note that the constructor to `unicode_print` does not own the argument - if it goes out of scope, then you will get undefined behaviour.
 
-The conversion from UTF-16/32 to UTF-8 performs few checks. If the UTF-16 is invalid, or the UTF-32 characters are in the surrogate range, they are still converted to UTF-8 (though it would technically be invalid UTF-8). UTF-32 characters outside the Unicode range of U+10FFFF become U+uFFFD replacement characters.
+The conversion from UTF-16/32 to UTF-8 performs few checks. If the UTF-16 is invalid, or the UTF-32 characters are in the surrogate range, they are still converted to UTF-8 (though it would technically be invalid UTF-8). UTF-32 characters outside the Unicode range of U+10FFFF become U+FFFD replacement characters.
 
 No validation is performed on the UTF-8 strings - they are passed as-is to the console.
 
 ### Convert Unicode to ASCII
 
-Though it may seem trivial (and it is), we include a set of functions to convert Unicode strings to ASCII strings. If any of the characters do not fit in the basic ASCII range, the function returns an error type. The return type itself is encoded as an std::expected type.
+Though it may seem trivial (and it is), we include a set of functions to convert Unicode strings to ASCII strings. The return type of `convert_unicode_to_ascii` is  `std::expected<std::string,unicode_to_ascii_error>`, with `std::string` representing success and `unicode_to_ascii_error` representing failure. If any of the input characters do not fit in the basic ASCII range, then a `unicode_to_ascii_error` is returned. 
+
+Below is an example of its use.
 
 ```cpp
-auto result = convert_unicode_to_ascii(u8"hello");
-if (result.has_value())
+auto result_1 = convert_unicode_to_ascii(u8"hello 😀");
+if (result_1.has_value())
 {
-    std::cout << result << std::endl;
+    std::cout << result_1.value() << std::endl;
 }
 else
 {
-    std::cout << result.error().message() << std::endl;
+    std::cout << unicode_print(result_1.error().message()) << std::endl;
 }
 ```
 
-It can be used with any Unicode-based character type in C++.
+It can be used with any Unicode-based character type in C++. There is also a variants that accepts a single character. Of these base two functions, there are a further two variants that return an exception instead of an `std::expected` value.
 
 ```cpp
-auto result_u8 = convert_unicode_to_ascii(u8"hello");
-auto result_u16 = convert_unicode_to_ascii(u"hello");
-auto result_u32 = convert_unicode_to_ascii(U"hello");
-auto result_wchar = convert_unicode_to_ascii(L"hello");
+auto result_u16 = convert_unicode_to_ascii(u'h');
+auto result_u32 = convert_unicode_to_ascii_with_exception(U"hello");
+auto result_wchar = convert_unicode_to_ascii_with_exception(L'h');
 ```
 
-As well as single characters (the result will be a std::string).
+Below we discuss error types and exceptions in `unicode_bridge`, as they are consistent across all functions. Also note that, across the conversion functions in `unicode_bridge`, this pattern is seen regularly; there are variants of functions for single characters, and variants that throw exceptions instead of returning `std::expected` values.
 
-```cpp
-auto result_char = convert_unicode_to_ascii(u8'h');
-```
+### Errors and exceptions
 
-There also include variants that throw an exception
+Each of the conversion or processing functions in `unicode_bridge` return errors, used for when the input does not adhere to either the Unicode standard, or is outside the range of the expected characters.
 
-```cpp
-auto result_u8 = convert_unicode_to_ascii_with_exception(u8"hello");
-std::cout << result_u8 << std::endl;
-```
+The return types of the functions in `unicode_bridge` are generally consistent; they return `std::expected` objects, where the second element is the error. There are also variants that exist which return exceptions.
 
-This functionality is seen across unicode_bridge; all functions that deal with processing a string in some way that can fail include two variants; one that creates an std::expected, and one that throws an exception.
+These exceptions are based on `unicode_bridge_exception`, a templated type which can take any of the error types from `unicode_bridge`. 
 
 ### convert_ascii_to_unicode
 
