@@ -3,6 +3,7 @@
 #include <array>
 #include <expected>
 #include <optional>
+#include <ostream>
 #include <string>
 #include <type_traits>
 
@@ -173,8 +174,11 @@ struct complete_string_arg_char_type<std::basic_string_view<CharT, Traits>>
 template <typename T>
 concept is_complete_unicode_string_arg_type_c
     = std::same_as<typename complete_string_arg_char_type<T>::type, void>
-      || char_type_is_unicode_c<
-          typename complete_string_arg_char_type<T>::type>;
+      || (std::convertible_to<T, std::basic_string_view<char_type_of_t<T>>>
+          && char_type_is_unicode_c<
+
+              typename complete_string_arg_char_type<
+                  std::basic_string_view<char_type_of_t<T>>>::type>);
 /*!
  * @brief Concept for a generic ASCII string type that can either be a
  * monostate (no string provided), a pair of iterators or a basic_string_view.
@@ -831,6 +835,10 @@ public:
     requires char_type_is_unicode_c<CharT>
     constexpr std::u8string
         message(const std::basic_string_view<CharT>& str_arg) const noexcept;
+    template <typename CharT>
+        requires char_type_is_unicode_c<CharT>
+    constexpr std::u8string
+        message(const CharT char_arg) const noexcept;
 };
 
 /*!
@@ -894,6 +902,8 @@ public:
      */
     constexpr std::u8string
         message(const std::string_view complete_string_arg) const;
+    constexpr std::u8string
+        message(const char char_arg) const;
     /*!
      * @brief Creates and returns the error message for this error.
      *
@@ -979,7 +989,7 @@ private:
     requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         is_complete_unicode_string_arg_type_c<String_Type>
         constexpr std::u8string
-        internal_message(const String_Type& str_arg) const;
+        internal_message(String_Type str_arg) const;
 public:
     /*!
      * @brief Gets the internal _code variable.
@@ -1009,10 +1019,17 @@ public:
      *
      * @return A std::u8string representing the error.
      */
+    template <typename ArgType>
+    requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+             && std::convertible_to<
+                 ArgType,
+                 std::basic_string_view<char_type_of_t<ArgType>>>
+    constexpr std::u8string
+        message(ArgType str_arg) const;
     template <typename CharT>
     requires char_type_is_unicode_c<CharT>
     constexpr std::u8string
-        message(const std::basic_string_view<CharT>& str_arg) const;
+        message(const CharT char_arg) const;
 };
 
 /*!
@@ -3421,7 +3438,8 @@ std::u8string
     bool brackets_open = false;
     if constexpr (not same_as<String_Type, monostate>)
     {
-        using CharT = typename complete_string_arg_char_type<String_Type>::type;
+        using CharT = typename complete_string_arg_char_type<
+            std::basic_string_view<char_type_of_t<String_Type>>>::type;
         basic_string_view<CharT> sv;
         size_t                   start_idx = character_index_arg;
         if constexpr (requires { typename String_Type::first_type; })
@@ -4057,6 +4075,15 @@ constexpr std::u8string
     return message<string_arg>(str_arg);
 }
 
+template <typename CharT>
+    requires char_type_is_unicode_c<CharT>
+constexpr std::u8string
+unicode_conversion_error::message(const CharT char_arg) const noexcept
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return message<string_arg,std::basic_string_view<CharT>>(std::basic_string(1,char_arg));
+}
+
 template <typename Error_Type>
 requires is_error_type_c<Error_Type>
 constexpr unicode_bridge_exception<Error_Type>::unicode_bridge_exception(
@@ -4176,11 +4203,11 @@ constexpr void
     {
         stream_u16(_str);
     }
-     else if constexpr (is_wchar_and_16_bit_c<CharT>)
-     {
+    else if constexpr (is_wchar_and_16_bit_c<CharT>)
+    {
         auto u16_str = cast_wstring_to_unicode_string(_str);
         stream_u16(u16_str);
-     }
+    }
     else if constexpr (same_as<char32_t, CharT>)
     {
         stream_u32(_str);
@@ -4296,6 +4323,15 @@ constexpr std::u8string
 }
 
 constexpr std::u8string
+    ascii_to_unicode_error::message(
+        const char char_arg
+    ) const
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return message<string_arg, std::string_view>(std::string(1, char_arg));
+}
+
+constexpr std::u8string
     ascii_to_unicode_error::message() const
 {
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
@@ -4314,7 +4350,7 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
     is_complete_unicode_string_arg_type_c<String_Type>
     constexpr std::u8string
     unicode_to_ascii_error::internal_message(
-        const String_Type& str_arg
+        String_Type str_arg
     ) const
 {
     using enum unicode_to_ascii_error_code;
@@ -4419,14 +4455,29 @@ constexpr std::u8string
     return internal_message(std::monostate{});
 }
 
+template <typename ArgType>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::u8string
+    unicode_to_ascii_error::message(
+        ArgType str_arg
+    ) const
+{
+    return internal_message(str_arg);
+}
+
 template <typename CharT>
 requires char_type_is_unicode_c<CharT>
 constexpr std::u8string
     unicode_to_ascii_error::message(
-        const std::basic_string_view<CharT>& str_arg
+        const CharT char_arg
     ) const
 {
-    return internal_message(str_arg);
+    return internal_message<std::basic_string_view<CharT>>(
+        std::basic_string<CharT>(1, char_arg)
+    );
 }
 
 constexpr next_char32_error::next_char32_error(
