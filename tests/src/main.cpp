@@ -2192,7 +2192,7 @@ inline void
                     REQUIRE(pair_arg.second == iterator_index);
                 };
                 // Test with error returned.
-                auto res = next_char32<true>(current_iterator, end_iterator);
+                auto res = next_char32(current_iterator, end_iterator);
                 if (res.has_value())
                 {
                     test_result_1(res.value());
@@ -2206,7 +2206,7 @@ inline void
                     );
                 }
                 // Test without error returned.
-                auto res2 = next_char32<false>(current_iterator, end_iterator);
+                auto res2 = next_char32_no_error(current_iterator, end_iterator);
                 if (res2.has_value())
                 {
                     test_result_1(res2.value());
@@ -2255,7 +2255,7 @@ inline void
                 };
 
                 // Next with error returned and increment iterator.
-                auto res3 = next_char32_and_increment_iterator<true>(
+                auto res3 = next_char32_and_increment_iterator(
                     new_iterator, end_iterator
                 );
                 if (res3.has_value())
@@ -2273,7 +2273,7 @@ inline void
                 // Next with no error returned and increment iterator.
                 // Reset iterator.
                 new_iterator = current_iterator;
-                auto res4    = next_char32_and_increment_iterator<false>(
+                auto res4    = next_char32_and_increment_iterator_no_error(
                     new_iterator, end_iterator
                 );
                 if (res4.has_value())
@@ -2313,7 +2313,7 @@ inline void
 
                 // Now test all the backwards versions too.
                 auto next_iterator = current_iterator + iterator_index;
-                auto res5 = prev_char32<true>(next_iterator, begin_iterator);
+                auto res5 = prev_char32(next_iterator, begin_iterator);
                 if (res5.has_value())
                 {
                     test_result_1(res5.value());
@@ -2327,7 +2327,7 @@ inline void
                     );
                 }
                 // Test without error returned.
-                auto res6 = prev_char32<false>(next_iterator, begin_iterator);
+                auto res6 = prev_char32_no_error(next_iterator, begin_iterator);
                 if (res6.has_value())
                 {
                     test_result_1(res6.value());
@@ -2364,7 +2364,7 @@ inline void
                     FAIL(msg);
                 }
                 new_iterator = next_iterator;
-                auto res7    = prev_char32_and_decrement_iterator<true>(
+                auto res7    = prev_char32_and_decrement_iterator(
                     new_iterator, begin_iterator
                 );
                 auto test_result_3 = [&](const auto& character_arg)
@@ -2397,7 +2397,7 @@ inline void
                 // Next with no error returned and increment iterator.
                 // Reset iterator.
                 new_iterator = next_iterator;
-                auto res8    = prev_char32_and_decrement_iterator<false>(
+                auto res8    = prev_char32_and_decrement_iterator_no_error(
                     new_iterator, begin_iterator
                 );
                 if (res8.has_value())
@@ -2437,7 +2437,7 @@ inline void
 
                 // Incrmeent iterator to the next code point for hte
                 // next test.
-                next_char32_and_increment_iterator<false>(
+                next_char32_and_increment_iterator_no_error(
                     current_iterator, end_iterator
                 );
             }
@@ -2703,7 +2703,7 @@ inline void
             auto end_iterator      = std::end(input_argument);
             current_iterator      += idx;
 
-            auto res = next_char32<true>(current_iterator, end_iterator);
+            auto res = next_char32(current_iterator, end_iterator);
             if (res.has_value())
             {
                 FAIL(
@@ -2717,7 +2717,7 @@ inline void
                 equal_next_char32_error(res.error(), expected_output);
             }
 
-            auto res2 = next_char32<false>(current_iterator, end_iterator);
+            auto res2 = next_char32_no_error(current_iterator, end_iterator);
             if (res2.has_value())
             {
                 FAIL(
@@ -2751,7 +2751,7 @@ inline void
             }
 
             auto new_iterator = current_iterator;
-            auto res3         = next_char32_and_increment_iterator<true>(
+            auto res3         = next_char32_and_increment_iterator(
                 new_iterator, end_iterator
             );
             if (res3.has_value())
@@ -2768,7 +2768,7 @@ inline void
             }
 
             new_iterator = current_iterator;
-            auto res4    = next_char32_and_increment_iterator<false>(
+            auto res4    = next_char32_and_increment_iterator_no_error(
                 new_iterator, end_iterator
             );
             if (res4.has_value())
@@ -3585,10 +3585,10 @@ inline void
             auto end_iterator      = std::begin(input_argument);
             current_iterator      -= idx;
 
-            auto res = prev_char32<true>(current_iterator, end_iterator);
+            auto res = prev_char32(current_iterator, end_iterator);
             if (res.has_value())
             {
-                auto res356 = prev_char32<true>(current_iterator, end_iterator);
+                auto res356 = prev_char32(current_iterator, end_iterator);
                 FAIL(
                     "Unexpected success. Values returned = `"
                     << char_printer(res.value().first) << "', "
@@ -3598,10 +3598,10 @@ inline void
             else
             {
                 equal_prev_char32_error(res.error(), expected_output);
-                auto res55 = prev_char32<true>(current_iterator, end_iterator);
+                auto res55 = prev_char32(current_iterator, end_iterator);
             }
 
-            auto res2 = prev_char32<false>(current_iterator, end_iterator);
+            auto res2 = prev_char32_no_error(current_iterator, end_iterator);
             if (res2.has_value())
             {
                 FAIL(
@@ -3635,7 +3635,7 @@ inline void
             }
 
             auto new_iterator = current_iterator;
-            auto res3         = prev_char32_and_decrement_iterator<true>(
+            auto res3         = prev_char32_and_decrement_iterator(
                 new_iterator, end_iterator
             );
             if (res3.has_value())
@@ -3652,7 +3652,7 @@ inline void
             }
 
             new_iterator = current_iterator;
-            auto res4    = prev_char32_and_decrement_iterator<false>(
+            auto res4    = prev_char32_and_decrement_iterator_no_error(
                 new_iterator, end_iterator
             );
             if (res4.has_value())

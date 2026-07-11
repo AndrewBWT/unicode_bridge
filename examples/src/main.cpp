@@ -111,27 +111,27 @@ int
     {
         std::u8string_view str = u8"the string to check";
         std::expected<std::pair<char32_t, std::size_t>, next_char32_error> res
-            = next_char32<true>(std::begin(str), std::end(str));
+            = next_char32(std::begin(str), std::end(str));
         std::optional<std::pair<char32_t, std::size_t>> res2
-            = next_char32<false>(std::begin(str), std::end(str));
+            = next_char32_no_error(std::begin(str), std::end(str));
         std::pair<char32_t, std::size_t> res3
             = next_char32_with_exception(std::begin(str), std::end(str));
 
-        auto str         = u8"the string to check";
-        auto current_itt = std::begin(str);
-        auto end_itt     = std::end(str);
+        std::u8string_view str2         = u8"the string to check";
+        auto current_itt = std::begin(str2);
+        auto end_itt     = std::end(str2);
         auto next_result
-            = next_char32_and_increment_iterator<true>(current_itt, end_itt);
+            = next_char32_and_increment_iterator(current_itt, end_itt);
         while (next_result.has_value())
         {
             auto character = next_result.value();
             // Do stuff with the character.
-            next_result    = next_char32_and_increment_iterator<true>(
+            next_result    = next_char32_and_increment_iterator(
                 current_itt, end_itt
             );
         }
         auto with_no_error
-            = next_char32_and_increment_iterator<false>(current_itt, end_itt);
+            = next_char32_and_increment_iterator_no_error(current_itt, end_itt);
         auto thros_exception
             = next_char32_and_increment_iterator_with_exception(
                 current_itt, end_itt
@@ -140,27 +140,27 @@ int
     {
         std::u8string_view str = u8"the string to check";
         std::expected<std::pair<char32_t, std::size_t>, prev_char32_error> res
-            = prev_char32<true>(std::end(str), std::begin(str));
+            = prev_char32(std::end(str), std::begin(str));
         std::optional<std::pair<char32_t, std::size_t>> res2
-            = prev_char32<false>(std::end(str), std::begin(str));
+            = prev_char32_no_error(std::end(str), std::begin(str));
         std::pair<char32_t, std::size_t> res3
             = prev_char32_with_exception(std::end(str), std::begin(str));
 
-        auto str         = u8"the string to check";
-        auto current_itt = std::end(str);
-        auto end_itt     = std::begin(str);
+        std::u8string_view str2 = u8"the string to check";
+        auto current_itt = std::end(str2);
+        auto end_itt     = std::begin(str2);
         auto next_result
-            = prev_char32_and_decrement_iterator<true>(current_itt, end_itt);
+            = prev_char32_and_decrement_iterator(current_itt, end_itt);
         while (next_result.has_value())
         {
             auto character = next_result.value();
             // Do stuff with the character.
-            next_result    = prev_char32_and_decrement_iterator<true>(
+            next_result    = prev_char32_and_decrement_iterator(
                 current_itt, end_itt
             );
         }
         auto with_no_error
-            = prev_char32_and_decrement_iterator<false>(current_itt, end_itt);
+            = prev_char32_and_decrement_iterator_no_error(current_itt, end_itt);
         auto thros_exception
             = prev_char32_and_decrement_iterator_with_exception(
                 current_itt, end_itt

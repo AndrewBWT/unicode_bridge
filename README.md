@@ -40,8 +40,8 @@ using namespace unicode_bridge;
 - Functions that check strings/characters to ensure they are valid Unicode/ASCII.
   - `is_valid_unicode` and `is_valid_ascii`.
 - Functions that when given a pair of iterator positions in a Unicode string, together representing a current position and an end-bound, can extract the next/previous Unicode scalar value from those iterators.
-  - `next_char32` and `prev_char32`.
-  - There are also variants `next_char32_and_increment_iterator` and `prev_char32_and_decrement_iterator` which move the current iterator away/towards the other iterator representing the bound of the function.
+  - `next_char32`, `next_char32_no_error`, `prev_char32` and `prev_char32_no_error`.
+  - There are also variants `next_char32_and_increment_iterator`, `next_char32_and_increment_iterator_no_error`, `prev_char32_and_decrement_iterator` and `prev_char32_and_decrement_iterator` which move the current iterator away/towards the other iterator representing the bound of the function.
   
 In `unicode_bridge`, we include several variants of each of the functions described above. Below we show an brief overview of all of these functions. Note the function signature does not contain the concepts that ensure the functions will only accept the correct types.
 
@@ -63,12 +63,12 @@ In `unicode_bridge`, we include several variants of each of the functions descri
 | `template<typename Unicode_Char> is_valid_unicode(const Unicode_Char)` | `bool` | None |
 | `template<typename String_Object> is_valid_ascii(String_Object)` | `bool` | None |
 | `template<typename Char_Type> is_valid_ascii(const Char_Type)` | `bool` | None |
-| `template<bool Return_Reason, typename Iterator_Type> next_char32(const Iterator_Type, const Iterator_Type)` | If `Return_Reason` is true then  `std::expected<std::pair<char32_t,std::size_t>,next_char32_error>` else `std::optional<std::pair<char32_t,std::size_t>>` | None       |
-| `template<bool Return_Reason, typename Iterator_Type> next_char32_and_increment_iterator(Iterator_Type&, const Iterator_Type)` | If `Return_Reason` is true then  `std::expected<std::pair<char32_t,std::size_t>,next_char32_error>` else `std::optional<std::pair<char32_t,std::size_t>>` | None       |
+| `template<typename Iterator_Type> next_char32(const Iterator_Type, const Iterator_Type)` | `std::expected<std::pair<char32_t,std::size_t>,next_char32_error>` | None       |
+| `template<typename Iterator_Type> next_char32_no_error(const Iterator_Type, const Iterator_Type)` | `std::optional<std::pair<char32_t,std::size_t>>` | None       |
 | `template<typename Iterator_Type> next_char32_with_exception(const Iterator_Type, const Iterator_Type)` | `std::pair<char32_t,std::size_t>` | `unicode_bridge_exception<next_char32_error>`|
 | `template<typename Iterator_Type> next_char32_and_increment_iterator_with_exception(const Iterator_Type, const Iterator_Type)` | `std::pair<char32_t,std::size_t>` | `unicode_bridge_exception<next_char32_error>`|
-| `template<bool Return_Reason, typename Iterator_Type> prev_char32(const Iterator_Type, const Iterator_Type)` | If `Return_Reason` is true then  `std::expected<std::pair<char32_t,std::size_t>,prev_char32_error>` else `std::optional<std::pair<char32_t,std::size_t>>` | None       |
-| `template<bool Return_Reason, typename Iterator_Type> prev_char32_and_increment_iterator(Iterator_Type&, const Iterator_Type)` | If `Return_Reason` is true then  `std::expected<std::pair<char32_t,std::size_t>,prev_char32_error>` else `std::optional<std::pair<char32_t,std::size_t>>` | None       |
+| `template<typename Iterator_Type> prev_char32(const Iterator_Type, const Iterator_Type)` | `std::expected<std::pair<char32_t,std::size_t>,prev_char32_error>` | None       |
+| `template<typename Iterator_Type> prev_char32_and_increment_iterator_no_error(Iterator_Type&, const Iterator_Type)` | `std::optional<std::pair<char32_t,std::size_t>>` | None       |
 | `template<typename Iterator_Type> prev_char32_with_exception(const Iterator_Type, const Iterator_Type)` | `std::pair<char32_t,std::size_t>` | `unicode_bridge_exception<prev_char32_error>`|
 | `template<typename Iterator_Type> prev_char32_and_increment_iterator_with_exception(const Iterator_Type, const Iterator_Type)` | `std::pair<char32_t,std::size_t>` | `unicode_bridge_exception<prev_char32_error>`|
 
@@ -208,28 +208,39 @@ A `bool` template parameter can change the return type. This parameter, called `
 Below we show an example of this.
 
 ```cpp
-auto str = u8"the string to check";
-std::expected<std::pair<char32_t,std::size_t>,next_char32_error> res = next_char32<true>(std::begin(str), std::end(str));
-std::optional<std::pair<char32_t,std::size_t>> res = next_char32<true>(std::begin(str), std::end(str));
-std::pair<char32_t,std::size_t> next_char32_with_exception(std::begin(str),std::end(str));
+std::u8string_view str = u8"the string to check";
+std::expected<std::pair<char32_t, std::size_t>, next_char32_error> res
+    = next_char32(std::begin(str), std::end(str));
+std::optional<std::pair<char32_t, std::size_t>> res2
+    = next_char32_no_error(std::begin(str), std::end(str));
+std::pair<char32_t, std::size_t> res3
+    = next_char32_with_exception(std::begin(str), std::end(str));
 ```
 
 The iterators given as arguments are `const`, so they are not changed.
 
-`unicode_bridge` also provide versions which move the iterator towards the bounds iterator by the number of bytes consumed to create the caracter, allowing the user to easily move through a string, extracting each Unicode character.
+`unicode_bridge` also provide versions which move the iterator towards the bounds iterator by the number of bytes consumed to create the character, allowing the user to easily move through a string, extracting each Unicode character.
 
 ```cpp
-auto str = u8"the string to check";
-auto current_itt = std::begin(str);
-auto end_itt = std::end(str);
-auto next_result = next_char32_and_increment_iterator<true>(current_itt, end_itt);
+std::u8string_view str2         = u8"the string to check";
+auto current_itt = std::begin(str2);
+auto end_itt     = std::end(str2);
+auto next_result
+    = next_char32_and_increment_iterator(current_itt, end_itt);
 while (next_result.has_value())
 {
     auto character = next_result.value();
     // Do stuff with the character.
-    next_result = next_char32_and_increment_iterator<true>(current_itt, end_itt);
+    next_result    = next_char32_and_increment_iterator(
+        current_itt, end_itt
+    );
 }
-auto with_no_error = next_char32_and_increment_iterator<false>(current_itt, end_itt);auto thros_exception = next_char32_and_increment_iterator_with_exception(current_itt, end_itt);
+auto with_no_error
+    = next_char32_and_increment_iterator_no_error(current_itt, end_itt);
+auto thros_exception
+    = next_char32_and_increment_iterator_with_exception(
+        current_itt, end_itt
+    );
 ```
 
 `prev_char32` works in a similar way to `next_char32`, except it gets the previous Unicode character from the string.
@@ -237,28 +248,29 @@ auto with_no_error = next_char32_and_increment_iterator<false>(current_itt, end_
 ```cpp
 std::u8string_view str = u8"the string to check";
 std::expected<std::pair<char32_t, std::size_t>, prev_char32_error> res
-    = prev_char32<true>(std::end(str), std::begin(str));
+    = prev_char32(std::end(str), std::begin(str));
 std::optional<std::pair<char32_t, std::size_t>> res2
-    = prev_char32<false>(std::end(str), std::begin(str));
+    = prev_char32_no_error(std::end(str), std::begin(str));
 std::pair<char32_t, std::size_t> res3
     = prev_char32_with_exception(std::end(str), std::begin(str));
 
-auto str         = u8"the string to check";
-auto current_itt = std::end(str);
-auto end_itt     = std::begin(str);
+std::u8string_view str2 = u8"the string to check";
+auto current_itt = std::end(str2);
+auto end_itt     = std::begin(str2);
 auto next_result
-    = prev_char32_and_decrement_iterator<true>(current_itt, end_itt);
+    = prev_char32_and_decrement_iterator(current_itt, end_itt);
 while (next_result.has_value())
 {
     auto character = next_result.value();
     // Do stuff with the character.
-    next_result    = prev_char32_and_decrement_iterator<true>(
-        current_itt, end_itt);
+    next_result    = prev_char32_and_decrement_iterator(
+        current_itt, end_itt
+    );
 }
 auto with_no_error
-    = prev_char32_and_decrement_iterator<false>(current_itt, end_itt);
+    = prev_char32_and_decrement_iterator_no_error(current_itt, end_itt);
 auto thros_exception
     = prev_char32_and_decrement_iterator_with_exception(
         current_itt, end_itt
-     );
+    );
 ```

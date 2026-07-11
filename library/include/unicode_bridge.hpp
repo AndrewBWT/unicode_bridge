@@ -126,6 +126,31 @@ using char_type_of_t = typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::char_type_of<
     String_Like_Type>::type;
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 
+template <typename T>
+struct unicode_string_arg_char_type
+{
+    using type = char_type_of_t<T>; // fallback: pointers, containers, etc.
+};
+
+template <>
+struct unicode_string_arg_char_type<std::monostate>
+{
+    using type = void;
+};
+
+template <typename X>
+requires std::input_or_output_iterator<X>
+struct unicode_string_arg_char_type<std::pair<X, X>>
+{
+    using type = typename std::iterator_traits<X>::value_type;
+};
+
+template <typename CharT, typename Traits>
+struct unicode_string_arg_char_type<std::basic_string_view<CharT, Traits>>
+{
+    using type = CharT;
+};
+
 // ---- Internal concepts ----
 // Defined here as require char_type_is_unicode_c as defined above.
 /*!
@@ -173,12 +198,9 @@ struct complete_string_arg_char_type<std::basic_string_view<CharT, Traits>>
 
 template <typename T>
 concept is_complete_unicode_string_arg_type_c
-    = std::same_as<typename complete_string_arg_char_type<T>::type, void>
-      || (std::convertible_to<T, std::basic_string_view<char_type_of_t<T>>>
-          && char_type_is_unicode_c<
-
-              typename complete_string_arg_char_type<
-                  std::basic_string_view<char_type_of_t<T>>>::type>);
+    = std::same_as<typename unicode_string_arg_char_type<T>::type, void>
+      || char_type_is_unicode_c<typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::
+                                    unicode_string_arg_char_type<T>::type>;
 /*!
  * @brief Concept for a generic ASCII string type that can either be a
  * monostate (no string provided), a pair of iterators or a basic_string_view.
@@ -835,8 +857,18 @@ public:
     requires char_type_is_unicode_c<CharT>
     constexpr std::u8string
         message(const std::basic_string_view<CharT>& str_arg) const noexcept;
+    /*!
+     * @brief Creates error message.
+     *
+     * This variant is used when the original input string is known, and it was
+     * a character not a string.
+     *
+     * @tparam CharT The type of the input character.
+     * @param string_arg The original input character.
+     * @return A std::u8string representing the error.
+     */
     template <typename CharT>
-        requires char_type_is_unicode_c<CharT>
+    requires char_type_is_unicode_c<CharT>
     constexpr std::u8string
         message(const CharT char_arg) const noexcept;
 };
@@ -1779,40 +1811,54 @@ constexpr bool
  * and that the first argument is the current position in the iterator, and the
  * second represents the end of the iterator.
  *
- * The basic return type of this function is a pair; the first element is the
- * Unicode character (represented as a char32_t type), and the second is a
- * std::size_t, representing the number of elements of the iterator required to
- * create the Unicode character.
+ * This function returns an std::expected, with the first type being the return
+ * type described above, and the second is a next_char32_error, used when the
+ * function encounters invalid Unicode.
  *
- * The template parameter Return_Reason changes the return type of this
- * function.
- *
- * If it is true, then an std::expected is returned, either containing the basic
- * return type, or a next_char32_error.
- *
- * If it is false, then an std::optional is returned, containing the basic
- * return type if the function was successful, or an empty std::optional if no
- * character could be extracted.
- *
- * @tparam Return_Reason The bool template parameter that controls the return
- * type. See above.
  * @ItteratorType The type of the input arguments. The iterator's value type's
  * must be a Unicode character type.
  * @param iterator_arg The current iterator.
  * @param itt_end_arg The end iterator. The function does not go past this
  * value.
- * @return If the function successfully extracts a character, then the character
- * and a size_t representing how many elemnets of the iterator were required to
- * create it. For the return type when the function fails, see above.
+ * @return Either a pair of Unicode character and integer representing the
+ * number of elements of the stream consumed to create that character, or an
+ * error.
  */
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    next_char32_result<std::pair<char32_t, std::size_t>>,
-    std::optional<std::pair<char32_t, std::size_t>>>
+constexpr next_char32_result<std::pair<char32_t, std::size_t>>
     next_char32(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept;
+/*!
+ * @brief Given two iterators representing a stream of Unicode characters,
+ * extracts the next Unicode character from them, and how many elemnets of the
+ * iterator were required to build that Unicode character.
+ *
+ * It is assumed that the iterators represent some stream of Unicode characters,
+ * and that the first argument is the current position in the iterator, and the
+ * second represents the end of the iterator.
+ *
+ * This function returns an std::optioanl, with its interanl type being the
+ * return type described above. If the function encounters an error, then an
+ * std::nullopt is returned.
+ *
+ * @ItteratorType The type of the input arguments. The iterator's value type's
+ * must be a Unicode character type.
+ * @param iterator_arg The current iterator.
+ * @param itt_end_arg The end iterator. The function does not go past this
+ * value.
+ * @return Either a pair of Unicode character and integer representing the
+ * number of elements of the stream consumed to create that character, or an
+ * std::nullopt.
+ */
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<std::pair<char32_t, std::size_t>>
+    next_char32_no_error(
         const ItteratorType iterator_arg,
         const ItteratorType itt_end_arg
     ) noexcept;
@@ -1828,20 +1874,9 @@ constexpr std::conditional_t<
  * the next boundary for extracting the next Unicode character.
  *
  * The basic return type of this function is a single
- * Unicode character (represented as a char32_t type).
+ * Unicode character (represented as a char32_t type). If an error is
+ * encountered by the function, then a next_char32_error is returned.
  *
- * The template parameter Return_Reason changes the return type of this
- * function.
- *
- * If it is true, then an std::expected is returned, either containing the basic
- * return type, or a next_char32_error.
- *
- * If it is false, then an std::optional is returned, containing the basic
- * return type if the function was successful, or an empty std::optional if no
- * character could be extracted.
- *
- * @tparam Return_Reason The bool template parameter that controls the return
- * type. See above.
  * @ItteratorType The type of the input arguments. The iterator's value type's
  * must be a Unicode character type.
  * @param iterator_arg The current iterator. If the function is successful, then
@@ -1849,16 +1884,45 @@ constexpr std::conditional_t<
  * @param itt_end_arg The end iterator. The function does not go past this
  * value.
  * @return If the function successfully extracts a character, then that
- * character. For the return type when the function fails, see above.
+ * character. If not, then a next_char32_error.
  */
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    next_char32_result<char32_t>,
-    std::optional<char32_t>>
+constexpr next_char32_result<char32_t>
     next_char32_and_increment_iterator(
+        ItteratorType&      iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept;
+/*!
+ * @brief Given two iterators representing a stream of Unicode characters,
+ * extracts the next Unicode character from them.
+ *
+ * It is assumed that the iterators represent some stream of Unicode characters,
+ * and that the first argument is the current position in the iterator, and the
+ * second represents the end of the iterator.
+ *
+ * This function will update the first iterator to a new position, moving it to
+ * the next boundary for extracting the next Unicode character.
+ *
+ * The basic return type of this function is a single
+ * Unicode character (represented as a char32_t type). If an error is
+ * encountered by the function, then an std::nullopt is returned.
+ *
+ * @ItteratorType The type of the input arguments. The iterator's value type's
+ * must be a Unicode character type.
+ * @param iterator_arg The current iterator. If the function is successful, then
+ * this value will be updated.
+ * @param itt_end_arg The end iterator. The function does not go past this
+ * value.
+ * @return If the function successfully extracts a character, then that
+ * character. If not, then a std::nullopt.
+ */
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<char32_t>
+    next_char32_and_increment_iterator_no_error(
         ItteratorType&      iterator_arg,
         const ItteratorType itt_end_arg
     ) noexcept;
@@ -1953,18 +2017,9 @@ constexpr char32_t
  * std::size_t, representing the number of elements of the iterator required to
  * create the Unicode character.
  *
- * The template parameter Return_Reason changes the return type of this
- * function.
+ * If the function, for some reason fails, then a prev_char32_error is returned
+ * instead.
  *
- * If it is true, then an std::expected is returned, either containing the basic
- * return type, or a prev_char32_error.
- *
- * If it is false, then an std::optional is returned, containing the basic
- * return type if the function was successful, or an empty std::optional if no
- * character could be extracted.
- *
- * @tparam Return_Reason The bool template parameter that controls the return
- * type. See above.
  * @ItteratorType The type of the input arguments. The iterator's value type's
  * must be a Unicode character type.
  * @param iterator_arg The current iterator.
@@ -1972,16 +2027,51 @@ constexpr char32_t
  * this value.
  * @return If the function successfully extracts a character, then the character
  * and a size_t representing how many elemnets of the iterator were required to
- * create it. For the return type when the function fails, see above.
+ * create it. If some error is encountered, then a prev_char32_error is
+ * returned.
  */
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    prev_char32_result<std::pair<char32_t, std::size_t>>,
-    std::optional<std::pair<char32_t, std::size_t>>>
+constexpr prev_char32_result<std::pair<char32_t, std::size_t>>
     prev_char32(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_start_arg
+    ) noexcept;
+/*!
+ * @brief Given two iterators representing a stream of Unicode characters,
+ * extracts the previous Unicode character from them, and how many elemnets of
+ * the iterator were required to build that Unicode character.
+ *
+ * It is assumed that the iterators represent some stream of Unicode characters,
+ * and that the first argument is the current position in the iterator, and the
+ * second represents the beginning of the iterator.
+ *
+ * The current iterator is one past the first element to be looked at. So if we
+ * were extracting the last element from a string, we would give std::end and
+ * std::begin as the first and second arguments.
+ *
+ * The basic return type of this function is a pair; the first element is the
+ * Unicode character (represented as a char32_t type), and the second is a
+ * std::size_t, representing the number of elements of the iterator required to
+ * create the Unicode character.
+ *
+ * If the function, for some reason fails, then a std::nullopt is returned.
+ *
+ * @ItteratorType The type of the input arguments. The iterator's value type's
+ * must be a Unicode character type.
+ * @param iterator_arg The current iterator.
+ * @param itt_start_arg The beginning iterator. The function does not go past
+ * this value.
+ * @return If the function successfully extracts a character, then the character
+ * and a size_t representing how many elemnets of the iterator were required to
+ * create it. If some error is encountered, then a std::nullopt is returned.
+ */
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<std::pair<char32_t, std::size_t>>
+    prev_char32_no_error(
         const ItteratorType iterator_arg,
         const ItteratorType itt_start_arg
     ) noexcept;
@@ -2001,20 +2091,9 @@ constexpr std::conditional_t<
  * the previous boundary for extracting the previous Unicode character.
  *
  * The basic return type of this function is a single
- * Unicode character (represented as a char32_t type).
+ * Unicode character (represented as a char32_t type). If an error is
+ * encountered, then a prev_char32_error is returned.
  *
- * The template parameter Return_Reason changes the return type of this
- * function.
- *
- * If it is true, then an std::expected is returned, either containing the basic
- * return type, or a prev_char32_error.
- *
- * If it is false, then an std::optional is returned, containing the basic
- * return type if the function was successful, or an empty std::optional if no
- * character could be extracted.
- *
- * @tparam Return_Reason The bool template parameter that controls the return
- * type. See above.
  * @ItteratorType The type of the input arguments. The iterator's value type's
  * must be a Unicode character type.
  * @param iterator_arg The current iterator. If the function is successful, then
@@ -2022,16 +2101,49 @@ constexpr std::conditional_t<
  * @param itt_start_arg The beginning iterator. The function does not go past
  * this value.
  * @return If the function successfully extracts a character, then that
- * character. For the return type when the function fails, see above.
+ * character. If not, then a prev_char32_error.
  */
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    prev_char32_result<char32_t>,
-    std::optional<char32_t>>
+constexpr prev_char32_result<char32_t>
     prev_char32_and_decrement_iterator(
+        ItteratorType&      iterator_arg,
+        const ItteratorType itt_start_arg
+    ) noexcept;
+/*!
+ * @brief Given two iterators representing a stream of Unicode characters,
+ * extracts the previous Unicode character from them.
+ *
+ * It is assumed that the iterators represent some stream of Unicode characters,
+ * and that the first argument is the current position in the iterator, and the
+ * second represents the beginning of the iterator.
+ *
+ * The current iterator is one past the first element to be looked at. So if we
+ * were extracting the last element from a string, we would give std::end and
+ * std::begin as the first and second arguments.
+ *
+ * This function will update the first iterator to a new position, moving it to
+ * the previous boundary for extracting the previous Unicode character.
+ *
+ * The basic return type of this function is a single
+ * Unicode character (represented as a char32_t type). If an error is
+ * encountered, then a std::nullopt is returned.
+ *
+ * @ItteratorType The type of the input arguments. The iterator's value type's
+ * must be a Unicode character type.
+ * @param iterator_arg The current iterator. If the function is successful, then
+ * this value will be updated.
+ * @param itt_start_arg The beginning iterator. The function does not go past
+ * this value.
+ * @return If the function successfully extracts a character, then that
+ * character. If not, then a std::nullopt.
+ */
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<char32_t>
+    prev_char32_and_decrement_iterator_no_error(
         ItteratorType&      iterator_arg,
         const ItteratorType itt_start_arg
     ) noexcept;
@@ -2779,8 +2891,6 @@ template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 2)
 constexpr T low_surrogate_upper_value() noexcept;
 
-constexpr std::u8string
-    to_u8string(const std::string_view str_arg);
 
 template <typename T>
 requires std::unsigned_integral<T>
@@ -3194,7 +3304,7 @@ constexpr std::tuple<bool, bool, std::basic_string_view<T>>
     {
         if constexpr (char_type_is_unicode_c<T>)
         {
-            auto res = prev_char32<false>(
+            auto res = prev_char32_no_error(
                 string_view_arg.begin() + start_char, string_view_arg.begin()
             );
             chars_counted++;
@@ -3223,7 +3333,7 @@ constexpr std::tuple<bool, bool, std::basic_string_view<T>>
     {
         if constexpr (char_type_is_unicode_c<T>)
         {
-            auto res = next_char32<false>(
+            auto res = next_char32_no_error(
                 string_view_arg.begin() + end_char, string_view_arg.end()
             );
             chars_counted++;
@@ -3438,8 +3548,7 @@ std::u8string
     bool brackets_open = false;
     if constexpr (not same_as<String_Type, monostate>)
     {
-        using CharT = typename complete_string_arg_char_type<
-            std::basic_string_view<char_type_of_t<String_Type>>>::type;
+        using CharT = typename unicode_string_arg_char_type<String_Type>::type;
         basic_string_view<CharT> sv;
         size_t                   start_idx = character_index_arg;
         if constexpr (requires { typename String_Type::first_type; })
@@ -4076,12 +4185,16 @@ constexpr std::u8string
 }
 
 template <typename CharT>
-    requires char_type_is_unicode_c<CharT>
+requires char_type_is_unicode_c<CharT>
 constexpr std::u8string
-unicode_conversion_error::message(const CharT char_arg) const noexcept
+    unicode_conversion_error::message(
+        const CharT char_arg
+    ) const noexcept
 {
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    return message<string_arg,std::basic_string_view<CharT>>(std::basic_string(1,char_arg));
+    return message<string_arg, std::basic_string_view<CharT>>(
+        std::basic_string(1, char_arg)
+    );
 }
 
 template <typename Error_Type>
@@ -5594,13 +5707,10 @@ constexpr bool
     }
 }
 
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    next_char32_result<std::pair<char32_t, std::size_t>>,
-    std::optional<std::pair<char32_t, std::size_t>>>
+constexpr next_char32_result<std::pair<char32_t, std::size_t>>
     next_char32(
         const ItteratorType iterator_arg,
         const ItteratorType itt_end_arg
@@ -5610,12 +5720,30 @@ constexpr std::conditional_t<
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = ItteratorType::value_type;
     return next_char32_internal_with_iterator_checking<
-        Return_Reason,
+        true,
         ItteratorType,
         CharT>(iterator_arg, iterator_arg, itt_end_arg);
 }
 
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<std::pair<char32_t, std::size_t>>
+    next_char32_no_error(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using CharT = ItteratorType::value_type;
+    return next_char32_internal_with_iterator_checking<
+        false,
+        ItteratorType,
+        CharT>(iterator_arg, iterator_arg, itt_end_arg);
+}
+
+/*template <bool Return_Reason, typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
 constexpr std::conditional_t<
@@ -5634,6 +5762,40 @@ constexpr std::conditional_t<
         Return_Reason,
         ItteratorType,
         CharT>(iterator_arg, iterator_arg, itt_end_arg);
+}*/
+
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr next_char32_result<char32_t>
+    next_char32_and_increment_iterator(
+        ItteratorType&      iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using CharT = std::iterator_traits<ItteratorType>::value_type;
+    return next_char32_and_increment_iterator<true, ItteratorType, CharT>(
+        iterator_arg, iterator_arg, itt_end_arg
+    );
+}
+
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<char32_t>
+    next_char32_and_increment_iterator_no_error(
+        ItteratorType&      iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using CharT = std::iterator_traits<ItteratorType>::value_type;
+    return next_char32_and_increment_iterator<false, ItteratorType, CharT>(
+        iterator_arg, iterator_arg, itt_end_arg
+    );
 }
 
 template <typename ItteratorType>
@@ -5648,7 +5810,7 @@ constexpr std::pair<char32_t, std::size_t>
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     return throw_if_error<pair<char32_t, size_t>, next_char32_error>(
-        next_char32<true>(iterator_arg, itt_end_arg)
+        next_char32(iterator_arg, itt_end_arg)
     );
 }
 
@@ -5664,17 +5826,14 @@ constexpr char32_t
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     return throw_if_error<char32_t, next_char32_error>(
-        next_char32_and_increment_iterator<true>(iterator_arg, itt_end_arg)
+        next_char32_and_increment_iterator(iterator_arg, itt_end_arg)
     );
 }
 
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    prev_char32_result<std::pair<char32_t, std::size_t>>,
-    std::optional<std::pair<char32_t, std::size_t>>>
+constexpr prev_char32_result<std::pair<char32_t, std::size_t>>
     prev_char32(
         const ItteratorType iterator_arg,
         const ItteratorType itt_start_arg
@@ -5684,18 +5843,33 @@ constexpr std::conditional_t<
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = ItteratorType::value_type;
     return prev_char32_internal_with_iterator_checking<
-        Return_Reason,
+        true,
         ItteratorType,
         CharT>(iterator_arg, iterator_arg, itt_start_arg);
 }
 
-template <bool Return_Reason, typename ItteratorType>
+template <typename ItteratorType>
 requires char_type_is_unicode_c<
     typename std::iterator_traits<ItteratorType>::value_type>
-constexpr std::conditional_t<
-    Return_Reason,
-    prev_char32_result<char32_t>,
-    std::optional<char32_t>>
+constexpr std::optional<std::pair<char32_t, std::size_t>>
+    prev_char32_no_error(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_start_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using CharT = ItteratorType::value_type;
+    return prev_char32_internal_with_iterator_checking<
+        false,
+        ItteratorType,
+        CharT>(iterator_arg, iterator_arg, itt_start_arg);
+}
+
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr prev_char32_result<char32_t>
     prev_char32_and_decrement_iterator(
         ItteratorType&      iterator_arg,
         const ItteratorType itt_start_arg
@@ -5704,10 +5878,26 @@ constexpr std::conditional_t<
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = std::iterator_traits<ItteratorType>::value_type;
-    return prev_char32_and_decrement_iterator<
-        Return_Reason,
-        ItteratorType,
-        CharT>(iterator_arg, iterator_arg, itt_start_arg);
+    return prev_char32_and_decrement_iterator<true, ItteratorType, CharT>(
+        iterator_arg, iterator_arg, itt_start_arg
+    );
+}
+
+template <typename ItteratorType>
+requires char_type_is_unicode_c<
+    typename std::iterator_traits<ItteratorType>::value_type>
+constexpr std::optional<char32_t>
+    prev_char32_and_decrement_iterator_no_error(
+        ItteratorType&      iterator_arg,
+        const ItteratorType itt_start_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using CharT = std::iterator_traits<ItteratorType>::value_type;
+    return prev_char32_and_decrement_iterator<false, ItteratorType, CharT>(
+        iterator_arg, iterator_arg, itt_start_arg
+    );
 }
 
 template <typename ItteratorType>
@@ -5722,7 +5912,7 @@ constexpr std::pair<char32_t, std::size_t>
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     return throw_if_error<pair<char32_t, size_t>, prev_char32_error>(
-        prev_char32<true>(iterator_arg, itt_start_arg)
+        prev_char32(iterator_arg, itt_start_arg)
     );
 }
 
@@ -5738,7 +5928,7 @@ constexpr char32_t
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     return throw_if_error<char32_t, prev_char32_error>(
-        prev_char32_and_decrement_iterator<true, ItteratorType>(
+        prev_char32_and_decrement_iterator<ItteratorType>(
             iterator_arg, itt_start_arg
         )
     );
@@ -5799,8 +5989,7 @@ constexpr std::basic_string<OutputChar>
         while (string_iterator != string_iterator_end)
         {
             const optional<char32_t> character_opt{
-                next_char32_and_increment_iterator<
-                    false,
+                next_char32_and_increment_iterator_no_error<
                     decltype(string_iterator)>(
                     string_iterator, string_iterator_end
                 )
@@ -6334,16 +6523,6 @@ constexpr T low_surrogate_upper_value() noexcept
     return T{0xDFFF};
 }
 
-constexpr std::u8string
-    to_u8string(
-        const std::string_view str_arg
-    )
-{
-    return std::u8string(
-        reinterpret_cast<const char8_t*>(str_arg.data()), str_arg.size()
-    );
-}
-
 template <typename T>
 requires std::unsigned_integral<T>
 constexpr std::u8string
@@ -6373,6 +6552,12 @@ constexpr std::u8string
                 return u8"th";
             }
         }
+    };
+    auto to_u8string = [](const std::string_view str_arg)
+    {
+        return std::u8string(
+            reinterpret_cast<const char8_t*>(str_arg.data()), str_arg.size()
+        );
     };
     u8string msg;
     msg.append(to_u8string(std::to_string(number_arg)));
