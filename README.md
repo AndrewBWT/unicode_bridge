@@ -60,9 +60,17 @@ In `unicode_bridge`, we include several variants of each of the functions descri
 | `template<typename Unicode_Char> convert_unicode_to_ascii_with_exception(const Unicode_Char)` | `std::string` | `unicode_bridge_exception<unicode_to_ascii_error>`       |
 | `template<typename Unicode_Char> convert_unicode_to_ascii_append_with_exception(const Unicode_Char, std::string&)` | `void` | `unicode_bridge_exception<unicode_to_ascii_error>`       |
 | `template<typename OutputChar> convert_ascii_to_unicode(const std::string_view)` | `std::expected<std::basic_string<OutputChar>,ascii_to_unicode_error>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append(const std::string_view, std::basic_string<OutputChar>&)` | `std::optional<ascii_to_unicode_error>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_no_error(const std::string_view)` | `std::optional<std::basic_string<OutputChar>>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append_no_error(const std::string_view, std::basic_string<OutputChar>&)` | `bool` | None       |
 | `template<typename OutputChar> convert_ascii_to_unicode(const char)` | `std::expected<std::basic_string<OutputChar>,ascii_to_unicode_error>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append(const char, std::basic_string<OutputChar>&)` | `std::optional<ascii_to_unicode_error>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_no_error(const char)` | `std::optional<std::basic_string<OutputChar>>` | None       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append_no_error(const char, std::basic_string<OutputChar>&)` | `bool` | None       |
 | `template<typename OutputChar> convert_ascii_to_unicode_with_exception(const std::string_view)` | `std::basic_string<OutputChar>` | `unicode_bridge_exception<unicode_to_ascii_error>`       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append_with_exception(const std::string_view, std::basic_string<OutputChar>&)` | `void` | `unicode_bridge_exception<unicode_to_ascii_error>`       |
 | `template<typename OutputChar> convert_ascii_to_unicode_with_exception(const char)` | `std::basic_string<OutputChar>` | `unicode_bridge_exception<ascii_to_unicode_error>`       |
+| `template<typename OutputChar> convert_ascii_to_unicode_append_with_exception(const char, std::basic_string<OutputChar>&)` | `void` | `unicode_bridge_exception<unicode_to_ascii_error>`       |
 | `template<typename OutputChar, typename Unicode_String_Object> unicode_conversion(Unicode_String_Object)` | `std::expected<std::basic_string<OutputChar>,unicode_conversion_error>` | None       |
 | `template<typename OutputChar, typename Unicode_Char> unicode_conversion(const Unicode_Char)` | `std::expected<std::basic_string<OutputChar>,unicode_conversion_error>` | None       |
 | `template<typename OutputChar, typename Unicode_String_Object> unicode_conversion_with_exception(Unicode_String_Object)` | `std::basic_string<OutputChar>` | `unicode_bridge_exception<unicode_conversion_error>` |

@@ -288,18 +288,21 @@ inline void
             auto result{convert_unicode_to_ascii(input_arg)};
             check_func({true, result});
             {
-                tuple<bool, expected<string, unicode_to_ascii_error>> exception_args = { true, "" };
+                tuple<bool, expected<string, unicode_to_ascii_error>>
+                    exception_args = {true, ""};
                 try
                 {
-                    // Checks that with_exception also returns the correct value.
+                    // Checks that with_exception also returns the correct
+                    // value.
                     auto converted
                         = convert_unicode_to_ascii_with_exception(input_arg);
                     get<1>(exception_args) = converted;
                 }
                 catch (const unicode_bridge_exception<unicode_to_ascii_error>&
-                    unexpected_exception)
+                           unexpected_exception)
                 {
-                    get<1>(exception_args) = unexpected(unexpected_exception.error());
+                    get<1>(exception_args)
+                        = unexpected(unexpected_exception.error());
                 }
                 catch (...)
                 {
@@ -310,7 +313,8 @@ inline void
             {
                 string str;
                 auto   res = convert_unicode_to_ascii_append(input_arg, str);
-                tuple<bool, expected<string, unicode_to_ascii_error>> test_args = { true, "" };
+                tuple<bool, expected<string, unicode_to_ascii_error>> test_args
+                    = {true, ""};
                 if (res.has_value())
                 {
                     get<1>(test_args) = unexpected(res.value());
@@ -321,10 +325,12 @@ inline void
                 }
             }
             {
-                tuple<bool, expected<string, unicode_to_ascii_error>> test_args = { true, "" };
+                tuple<bool, expected<string, unicode_to_ascii_error>> test_args
+                    = {true, ""};
                 try
                 {
-                    // Checks that with_exception also returns the correct value.
+                    // Checks that with_exception also returns the correct
+                    // value.
                     string str;
                     convert_unicode_to_ascii_append_with_exception(
                         input_arg, str
@@ -332,9 +338,10 @@ inline void
                     get<1>(test_args) = str;
                 }
                 catch (const unicode_bridge_exception<unicode_to_ascii_error>&
-                    unexpected_exception)
+                           unexpected_exception)
                 {
-                    get<1>(test_args) = unexpected(unexpected_exception.error());
+                    get<1>(test_args)
+                        = unexpected(unexpected_exception.error());
                 }
                 catch (...)
                 {
@@ -343,7 +350,8 @@ inline void
                 check_func(test_args);
             }
             {
-                tuple<bool, expected<string, unicode_to_ascii_error>> test_args = { true, "" };
+                tuple<bool, expected<string, unicode_to_ascii_error>> test_args
+                    = {true, ""};
                 auto res = convert_unicode_to_ascii_no_error(input_arg);
                 if (res.has_value())
                 {
@@ -356,9 +364,11 @@ inline void
                 check_func(test_args);
             }
             {
-                string str;
-                tuple<bool, expected<string, unicode_to_ascii_error>> test_args = { true, "" };
-                auto res = convert_unicode_to_ascii_append_no_error(input_arg, str);
+                string                                                str;
+                tuple<bool, expected<string, unicode_to_ascii_error>> test_args
+                    = {true, ""};
+                auto res
+                    = convert_unicode_to_ascii_append_no_error(input_arg, str);
                 if (res)
                 {
                     get<1>(test_args) = str;
@@ -1361,78 +1371,232 @@ inline void
     using namespace std;
     using namespace unicode_bridge;
     using namespace unicode_bridge::internal;
-    initializer_list<pair<string, unicode_bridge::ascii_to_unicode_error>>
+    initializer_list<tuple<
+        string,
+        unicode_bridge::ascii_to_unicode_error,
+        basic_string<CharT>>>
         invalid_results = {
-            {make_str({'\x80'},                   ""),      ascii_to_unicode_error(0, '\x80')},
-            {make_str({'\xFF'},                   ""),      ascii_to_unicode_error(0, '\xFF')},
-            {make_str({'\xC3', '\xA9'},           ""),      ascii_to_unicode_error(0, '\xC3')},
-            {make_str({'\x80', '\x41'},           ""),      ascii_to_unicode_error(0, '\x80')},
-            {make_str({'\x41', '\x80'},           ""),      ascii_to_unicode_error(1, '\x80')},
+            {make_str({'\x80'},                   ""),
+             ascii_to_unicode_error(0, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
+            {make_str({'\xFF'},                   ""),
+             ascii_to_unicode_error(0, '\xFF'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
+            {make_str({'\xC3', '\xA9'},           ""),
+             ascii_to_unicode_error(0, '\xC3'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
+            {make_str({'\x80', '\x41'},           ""),
+             ascii_to_unicode_error(0, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
+            {make_str({'\x41', '\x80'},           ""),
+             ascii_to_unicode_error(1, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
 
-            {make_str({'\xFF', '\xFE'},           ""),      ascii_to_unicode_error(0, '\xFF')},
+            {make_str({'\xFF', '\xFE'},           ""),
+             ascii_to_unicode_error(0, '\xFF'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
             {make_str({'\x81', '\x82', '\x83'},   ""),
-             ascii_to_unicode_error(0,                                                '\x81')},
+             ascii_to_unicode_error(0, '\x81'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
 
             {string("hello") + make_str({'\x80'}, ""),
-             ascii_to_unicode_error(5,                                                '\x80')},
-            {make_str({'\x80'},                   "hello"), ascii_to_unicode_error(0, '\x80')},
+             ascii_to_unicode_error(5, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"hello")},
+            {make_str({'\x80'},                   "hello"),
+             ascii_to_unicode_error(0, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"")     },
             {string("h") + make_str({'\x80'},     "ello"),
-             ascii_to_unicode_error(1,                                                '\x80')},
+             ascii_to_unicode_error(1, '\x80'),
+             unicode_conversion_with_exception<CharT>(u8"h")    },
     };
     // Run invalid tests.
-    for (auto&& [input_string, expected_arg] : invalid_results)
+    for (auto&& [input_string, expected_arg, partial_str_res] : invalid_results)
     {
         auto run_func = [&]<typename T>(const T input_arg)
         {
             // Checks its valid ascii.
             REQUIRE(is_valid_ascii(input_arg) == false);
-            auto result{
-                unicode_bridge::convert_ascii_to_unicode<CharT>(input_arg)
+            auto check_func
+                = [&](const std::tuple<
+                      // Used to catch non-caught exceptions. False is "major
+                      // unknown failure".
+                      bool,
+                      // Catches the half-created output.
+                      std::optional<std::basic_string<CharT>>,
+                      // Result and optional error.
+                      std::expected<
+                          std::basic_string<CharT>,
+                          optional<ascii_to_unicode_error>>>& result_arg)
+            {
+                if (get<0>(result_arg) == false)
+                {
+                    INFO("Unknown functio failure");
+                    FAIL();
+                }
+                if (get<2>(result_arg).has_value())
+                {
+                    string output{
+                        "Unexpected successful convert_unicode_to_ascii "
+                        "conversion. std::string result is \""
+                    };
+                    output.append(
+                        unicode_print(get<2>(result_arg).value()).str()
+                    );
+                    output.append("\"");
+                    FAIL(output);
+                }
+                else
+                {
+                    // Otherwise, test that the failure is the one expected.
+                    if (get<2>(result_arg).error().has_value())
+                    {
+                        auto& failure_result{get<2>(result_arg).error().value()
+                        };
+                        INFO(unicode_print(failure_result.message(input_string))
+                        );
+                        REQUIRE(
+                            failure_result.get_character()
+                            == expected_arg.get_character()
+                        );
+                        REQUIRE(
+                            failure_result.get_index()
+                            == expected_arg.get_index()
+                        );
+                        if (get<1>(result_arg).has_value())
+                        {
+                            if ((get<1>(result_arg).value()) != partial_str_res)
+                            {
+                                int x = 4;
+                            }
+                            REQUIRE(
+                                (get<1>(result_arg).value()) == partial_str_res
+                            );
+                        }
+                    }
+                    else
+                    {
+                        SUCCEED();
+                    }
+                }
             };
-            if (result.has_value())
+            tuple<
+                bool,
+                optional<basic_string<CharT>>,
+                expected<basic_string<CharT>, optional<ascii_to_unicode_error>>>
+                test_arg;
             {
-                string output{"Unexpected successful convert_ascii_to_unicode "
-                              "conversion. Result is \""};
-                output.append(convert_unicode_to_string(result.value()));
-                output.append("\"");
-                FAIL(output);
+                auto result
+                    = unicode_bridge::convert_ascii_to_unicode<CharT>(input_arg
+                    );
+                check_func({true, std::nullopt, result});
             }
-            else
             {
-                auto& failure_result{result.error()};
-                INFO(convert_unicode_to_string(failure_result.message()));
-                REQUIRE(
-                    failure_result.get_character()
-                    == expected_arg.get_character()
+                test_arg
+                    = {true,
+                       std::nullopt,
+                       unicode_conversion_with_exception<CharT>(u8"")};
+                try
+                {
+                    // Checks that with_exception also returns the correct
+                    // value.
+                    auto result
+                        = convert_ascii_to_unicode_with_exception<CharT>(
+                            input_arg
+                        );
+                    get<2>(test_arg) = result;
+                }
+                catch (const unicode_bridge_exception<ascii_to_unicode_error>&
+                           unexpected_exception)
+                {
+                    get<2>(test_arg) = unexpected(unexpected_exception.error());
+                }
+                catch (...)
+                {
+                    get<0>(test_arg) = false;
+                }
+            }
+            {
+                test_arg
+                    = {true,
+                       std::nullopt,
+                       unicode_conversion_with_exception<CharT>(u8"")};
+                basic_string<CharT> str;
+                auto result = unicode_bridge::convert_ascii_to_unicode_append(
+                    input_arg, str
                 );
-                REQUIRE(failure_result.get_index() == expected_arg.get_index());
+                if (result.has_value())
+                {
+                    get<2>(test_arg) = unexpected(result.value());
+                }
+                else
+                {
+                    get<2>(test_arg) = str;
+                }
+                check_func(test_arg);
             }
-            try
             {
-                // Checks that with_exception also returns the correct
-                // value.
-                auto result2
-                    = convert_ascii_to_unicode_with_exception<CharT>(input_arg);
-                string output{"Unexpected successful convert_ascii_to_unicode "
-                              "conversion. std::string result is \""};
-                output.append(convert_unicode_to_string(result2));
-                output.append("\"");
-                FAIL(output);
-            }
-            catch (const unicode_bridge_exception<ascii_to_unicode_error>&
-                       unexpected_exception)
-            {
-                auto& failure_result{unexpected_exception.error()};
-                REQUIRE(
-                    failure_result.get_character()
-                    == expected_arg.get_character()
+                test_arg
+                    = { true,
+                       std::nullopt,
+                       unicode_conversion_with_exception<CharT>(u8"") };
+                auto result = unicode_bridge::convert_ascii_to_unicode_no_error<CharT>(
+                    input_arg
                 );
-                REQUIRE(failure_result.get_index() == expected_arg.get_index());
+                if (result.has_value())
+                {
+                    get<2>(test_arg) = result.value();
+                }
+                else
+                {
+                    get<2>(test_arg) = unexpected(std::nullopt);
+                }
+                check_func(test_arg);
             }
-            catch (...)
             {
-                string msg = "Unexpected, unknown exception";
-                FAIL(msg);
+                test_arg
+                    = { true,
+                       std::nullopt,
+                       unicode_conversion_with_exception<CharT>(u8"") };
+                basic_string<CharT> str;
+                auto result = unicode_bridge::convert_ascii_to_unicode_append_no_error(
+                    input_arg, str
+                );
+                if (result)
+                {
+                    get<2>(test_arg) = str;
+                }
+                else
+                {
+                    get<1>(test_arg) = str;
+                    get<2>(test_arg) = unexpected(std::nullopt);
+                }
+                check_func(test_arg);
+            }
+            {
+                basic_string<CharT> str;
+                test_arg
+                    = { true,
+                       std::nullopt,
+                       unicode_conversion_with_exception<CharT>(u8"") };
+                try
+                {
+                    // Checks that with_exception also returns the correct
+                    // value.
+                    convert_ascii_to_unicode_append_with_exception<CharT>(
+                            input_arg, str
+                        );
+                    get<2>(test_arg) = str;
+                }
+                catch (const unicode_bridge_exception<ascii_to_unicode_error>&
+                    unexpected_exception)
+                {
+                    get<1>(test_arg) = str;
+                    get<2>(test_arg) = unexpected(unexpected_exception.error());
+                }
+                catch (...)
+                {
+                    get<0>(test_arg) = false;
+                }
             }
         };
         run_all_string_types(run_func, input_string);

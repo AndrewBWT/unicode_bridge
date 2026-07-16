@@ -1640,6 +1640,27 @@ requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<ArgType, std::string_view>
 constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
     convert_ascii_to_unicode(ArgType str_arg) noexcept;
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr std::optional<ascii_to_unicode_error>
+    convert_ascii_to_unicode_append(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept;
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr std::optional<std::basic_string<OutputChar>>
+    convert_ascii_to_unicode_no_error(ArgType str_arg) noexcept;
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr bool
+    convert_ascii_to_unicode_append_no_error(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept;
 /*!
  * @brief Converts an ASCII character to a Unicode string.
  *
@@ -1657,6 +1678,24 @@ template <typename OutputChar>
 requires char_type_is_unicode_c<OutputChar>
 constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
     convert_ascii_to_unicode(const char char_arg) noexcept;
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr std::optional<ascii_to_unicode_error>
+    convert_ascii_to_unicode_append(
+        const char                     char_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept;
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    convert_ascii_to_unicode_no_error(const char char_arg) noexcept;
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr bool
+    convert_ascii_to_unicode_append_no_error(
+        const char                     char_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept;
 /*!
  * @brief Converts an ASCII string to a Unicode string.
  *
@@ -1682,6 +1721,14 @@ requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<ArgType, std::string_view>
 constexpr std::basic_string<OutputChar>
     convert_ascii_to_unicode_with_exception(ArgType str_arg);
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr void
+    convert_ascii_to_unicode_append_with_exception(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    );
 /*!
  * @brief Converts an ASCII character to a Unicode string.
  *
@@ -1702,6 +1749,13 @@ template <typename OutputChar>
 requires char_type_is_unicode_c<OutputChar>
 constexpr std::basic_string<OutputChar>
     convert_ascii_to_unicode_with_exception(const char char_arg);
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr void
+    convert_ascii_to_unicode_append_with_exception(
+        const char                     char_arg,
+        std::basic_string<OutputChar>& output_arg
+    );
 // ---- unicode_conversion and related functions
 /*!
  * @brief Converts a Unicode string from one Unicode format to another.
@@ -5320,7 +5374,7 @@ constexpr void
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    return throw_if_no_error<unicode_to_ascii_error>(
+    return throw_no_return_value<unicode_to_ascii_error>(
         convert_unicode_to_ascii_append(str_arg, str_to_append_to_arg)
     );
 }
@@ -5338,20 +5392,22 @@ constexpr std::string
         convert_unicode_to_ascii(char_arg)
     );
 }
+
 template <typename InputChar>
-    requires char_type_is_unicode_c<InputChar>
+requires char_type_is_unicode_c<InputChar>
 constexpr void
-convert_unicode_to_ascii_append_with_exception(
-    const InputChar char_arg,
-    std::string& str_to_append_to_arg
-)
+    convert_unicode_to_ascii_append_with_exception(
+        const InputChar char_arg,
+        std::string&    str_to_append_to_arg
+    )
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    return throw_if_no_error<unicode_to_ascii_error>(
+    throw_no_return_value<unicode_to_ascii_error>(
         convert_unicode_to_ascii_append(char_arg, str_to_append_to_arg)
     );
 }
+
 template <typename OutputChar, typename ArgType>
 requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<ArgType, std::string_view>
@@ -5362,20 +5418,44 @@ constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using ResultType               = std::basic_string<OutputChar>;
-    using itt                      = typename string_view::const_iterator;
-    using U                        = char_type_of_t<ArgType>;
-    auto       sv                  = basic_string_view<U>(str_arg);
-    itt        string_iterator     = sv.begin();
-    itt        string_iterator_end = sv.end();
+    using ResultType = std::basic_string<OutputChar>;
     ResultType output_string;
-    auto       output_string_inserter(back_inserter(output_string));
+    auto       res = convert_ascii_to_unicode_append(str_arg, output_string);
+    if (res.has_value())
+    {
+        return unexpected(res.value());
+    }
+    else
+    {
+        return output_string;
+    }
+}
+
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr std::optional<ascii_to_unicode_error>
+    convert_ascii_to_unicode_append(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept
+
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    using ResultType         = std::basic_string<OutputChar>;
+    using itt                = typename string_view::const_iterator;
+    using U                  = char_type_of_t<ArgType>;
+    auto sv                  = basic_string_view<U>(str_arg);
+    itt  string_iterator     = sv.begin();
+    itt  string_iterator_end = sv.end();
+    auto output_string_inserter(back_inserter(output_arg));
     for (size_t idx{0}; string_iterator != string_iterator_end; ++idx)
     {
         const char character{*string_iterator};
         if (not is_valid_ascii(character))
         {
-            return unexpected(ascii_to_unicode_error(idx, character));
+            return make_optional(ascii_to_unicode_error(idx, character));
         }
         else
         {
@@ -5383,7 +5463,50 @@ constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
             ++string_iterator;
         }
     }
-    return output_string;
+    return std::nullopt;
+}
+
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr std::optional<std::basic_string<OutputChar>>
+    convert_ascii_to_unicode_no_error(
+        ArgType str_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    auto res = convert_ascii_to_unicode<OutputChar>(str_arg);
+    if (res.has_value())
+    {
+        return make_optional(res.value());
+    }
+    else
+    {
+        return std::nullopt;
+    }
+}
+
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr bool
+    convert_ascii_to_unicode_append_no_error(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    auto res = convert_ascii_to_unicode_append<OutputChar>(str_arg, output_arg);
+    if (res.has_value())
+    {
+        return false;
+    }
+    else
+    {
+        return true;
+    }
 }
 
 template <typename OutputChar>
@@ -5398,6 +5521,50 @@ constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
     const char                    char_arr[2] = {char_arg, char{}};
     const basic_string_view<char> sv(char_arr, 1);
     return convert_ascii_to_unicode<OutputChar>(sv);
+}
+
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr std::optional<ascii_to_unicode_error>
+    convert_ascii_to_unicode_append(
+        const char                     char_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    const char                    char_arr[2] = {char_arg, char{}};
+    const basic_string_view<char> sv(char_arr, 1);
+    return convert_ascii_to_unicode_append(sv, output_arg);
+}
+
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    convert_ascii_to_unicode_no_error(
+        const char char_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    const char                    char_arr[2] = {char_arg, char{}};
+    const basic_string_view<char> sv(char_arr, 1);
+    return convert_ascii_to_unicode_no_error<OutputChar>(sv);
+}
+
+template <typename OutputChar>
+requires char_type_is_unicode_c<OutputChar>
+constexpr bool
+    convert_ascii_to_unicode_append_no_error(
+        const char                     char_arg,
+        std::basic_string<OutputChar>& output_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    const char                    char_arr[2] = {char_arg, char{}};
+    const basic_string_view<char> sv(char_arr, 1);
+    return convert_ascii_to_unicode_append_no_error(sv, output_arg);
 }
 
 template <typename OutputChar, typename ArgType>
@@ -5415,6 +5582,22 @@ constexpr std::basic_string<OutputChar>
     );
 }
 
+template <typename OutputChar, typename ArgType>
+requires char_type_is_unicode_c<OutputChar>
+         && std::convertible_to<ArgType, std::string_view>
+constexpr void
+    convert_ascii_to_unicode_append_with_exception(
+        ArgType                        str_arg,
+        std::basic_string<OutputChar>& output_arg
+    )
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    throw_no_return_value<ascii_to_unicode_error>(
+        convert_ascii_to_unicode_append(str_arg, output_arg)
+    );
+}
+
 template <typename OutputChar>
 requires char_type_is_unicode_c<OutputChar>
 constexpr std::basic_string<OutputChar>
@@ -5428,7 +5611,20 @@ constexpr std::basic_string<OutputChar>
         convert_ascii_to_unicode<OutputChar>(char_arg)
     );
 }
-
+template <typename OutputChar>
+    requires char_type_is_unicode_c<OutputChar>
+constexpr void
+convert_ascii_to_unicode_append_with_exception(
+    const char                     char_arg,
+    std::basic_string<OutputChar>& output_arg
+)
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    throw_no_return_value<ascii_to_unicode_error>(
+        convert_ascii_to_unicode_append(char_arg, output_arg)
+    );
+}
 template <typename OutputChar, typename ArgType>
 requires char_type_is_unicode_c<OutputChar>
          && char_type_is_unicode_c<char_type_of_t<ArgType>>
@@ -6666,11 +6862,11 @@ ResultT
 }
 
 template <typename ErrorT>
-    requires unicode_bridge_error_c<ErrorT>
+requires unicode_bridge_error_c<ErrorT>
 void
-throw_if_no_error(
-    std::optional<ErrorT> result
-)
+    throw_no_return_value(
+        const std::optional<ErrorT>& result
+    )
 {
     if (result.has_value())
     {
