@@ -853,10 +853,13 @@ public:
      * @param string_arg The original input string.
      * @return A std::u8string representing the error.
      */
-    template <typename CharT>
-    requires char_type_is_unicode_c<CharT>
+    template <typename ArgType>
+    requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+             && std::convertible_to<
+                 ArgType,
+                 std::basic_string_view<char_type_of_t<ArgType>>>
     constexpr std::u8string
-        message(const std::basic_string_view<CharT>& str_arg) const noexcept;
+        message(ArgType str_arg) const noexcept;
     /*!
      * @brief Creates error message.
      *
@@ -4388,11 +4391,14 @@ constexpr std::u8string
     return message<string_arg>(std::monostate{});
 }
 
-template <typename CharT>
-requires char_type_is_unicode_c<CharT>
+template <typename ArgType>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
 constexpr std::u8string
     unicode_conversion_error::message(
-        const std::basic_string_view<CharT>& str_arg
+        ArgType str_arg
     ) const noexcept
 {
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
@@ -5764,400 +5770,73 @@ constexpr std::optional<unicode_conversion_error>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar = char_type_of_t<ArgType>;
-    auto sv         = basic_string_view<InputChar>(str_arg);
-    auto convert_u32string_to_u16string_function
-        = [&](const u32string_view u32_arg)
+    using InputChar  = char_type_of_t<ArgType>;
+    auto sv          = basic_string_view<InputChar>(str_arg);
+    auto rv          = std::back_inserter(output_arg);
+    auto begin_str   = std::begin(sv);
+    auto end_str     = std::end(sv);
+    auto current_itt = begin_str;
+    while (current_itt != end_str)
     {
-        auto return_value_inserter{std::back_inserter(output_arg)};
-        auto str_end_iterator{std::end(u32_arg)};
-        for (auto str_iterator{std::begin(u32_arg)};
-             str_iterator != str_end_iterator;
-             ++str_iterator)
+        auto next_char32 = forward_scan_for_next_char32<
+            true,
+            decltype(current_itt),
+            InputChar>(current_itt, end_str);
+        if (next_char32.has_value())
         {
-            const char32_t character{*str_iterator};
-            // Encode as UTF-16
-            if (character
-                <= single_char16_limit_and_three_char8_limit<char32_t>())
+            current_itt    += next_char32.value().second;
+            auto character  = next_char32.value().first;
+            if constexpr (std::same_as<OutputChar, char32_t>
+                          || is_wchar_and_32_bit_c<OutputChar>)
             {
-                // BMP (Basic Multilingual Plane)
-                return_value_inserter = static_cast<OutputChar>(character);
+                output_arg.push_back(static_cast<OutputChar>(character));
             }
-            else if (character <= char32_limit<char32_t>())
+            else if constexpr (std::same_as<OutputChar, char16_t>
+                               || is_wchar_and_16_bit_c<OutputChar>)
             {
-                // Supplementary Plane to surrogate pair
-                // Moves the character from the range 0x10000 to 0x10FFFF to
-                // 0... 0xFFFFF.
-                const char32_t character_cpy{
-                    character - char16_offset_for_char32_conversion<char32_t>()
-                };
-                return_value_inserter = static_cast<OutputChar>(
-                    (character_cpy >> 10)
-                    + high_surrogate_lower_value<char32_t>()
-                );
-                return_value_inserter = static_cast<OutputChar>(
-                    (character_cpy & 0b0011'1111'1111)
-                    + low_surrogate_lower_value<char32_t>()
-                );
-            }
-            else
-            {
-                std::unreachable();
-            }
-        }
-    };
-    auto convert_u32string_to_u8string_function
-        = [&](const u32string_view u32_arg)
-    {
-        auto     return_value_inserter{std::back_inserter(output_arg)};
-        for (const char32_t character : u32_arg)
-        {
-            add_char_to_unicode_string(character, return_value_inserter);
-        }
-    };
-    auto validate_u32_string
-        = [](const u32string_view str_arg) -> optional<unicode_conversion_error>
-    {
-        // Checks the input is valid.
-        const auto conversion_result{
-            if_invalid_u32string_return_char_and_position(str_arg)
-        };
-        // If invalid, return the reason its invalid.
-        if (conversion_result.has_value())
-        {
-            return make_optional(unicode_conversion_error(
-                conversion_result.value().second,
-                forward_scan_unicode_error_factory::
-                    invalid_utf32_code_point(conversion_result.value().first, same_as<InputChar, wchar_t>)
-            ));
-        }
-        else
-        {
-            return std::nullopt;
-        }
-    };
-    auto validate_unicode = []<bool Return_Str, typename T>(const T str_arg)
-        -> std::conditional_t<
-            Return_Str,
-            unicode_conversion_result<std::u32string>,
-            optional<unicode_conversion_error>>
-    {
-        auto begin_str   = std::begin(str_arg);
-        auto end_str     = std::end(str_arg);
-        auto current_itt = begin_str;
-        std::conditional_t<
-            Return_Str,
-            unicode_conversion_result<std::u32string>,
-            optional<unicode_conversion_error>>
-            rv;
-        while (current_itt != end_str)
-        {
-            auto next_char32 = forward_scan_for_next_char32<
-                true,
-                decltype(current_itt),
-                InputChar>(current_itt, end_str);
-            if (next_char32.has_value())
-            {
-                current_itt += next_char32.value().second;
-                if constexpr (Return_Str)
+                // Encode as UTF-16
+                if (character
+                    <= single_char16_limit_and_three_char8_limit<char32_t>())
                 {
-                    rv.value().push_back(next_char32.value().first);
+                    // BMP (Basic Multilingual Plane)
+                    rv = static_cast<OutputChar>(character);
                 }
-            }
-            else
-            {
-                if constexpr (Return_Str)
+                else if (character <= char32_limit<char32_t>())
                 {
-                    return unexpected(unicode_conversion_error(
-                        std::distance(begin_str, current_itt),
-                        next_char32.error()
-                    ));
+                    // Supplementary Plane to surrogate pair
+                    // Moves the character from the range 0x10000 to 0x10FFFF to
+                    // 0... 0xFFFFF.
+                    const char32_t character_cpy{
+                        character
+                        - char16_offset_for_char32_conversion<char32_t>()
+                    };
+                    rv = static_cast<OutputChar>(
+                        (character_cpy >> 10)
+                        + high_surrogate_lower_value<char32_t>()
+                    );
+                    rv = static_cast<OutputChar>(
+                        (character_cpy & 0b0011'1111'1111)
+                        + low_surrogate_lower_value<char32_t>()
+                    );
                 }
                 else
                 {
-                    return make_optional(unicode_conversion_error(
-                        std::distance(begin_str, current_itt),
-                        next_char32.error()
-                    ));
+                    std::unreachable();
                 }
             }
-        }
-        return rv;
-    };
-
-    // If input is same as output, all we gotta do is validate the unicode
-    // input.
-    if constexpr (std::same_as<InputChar, OutputChar>)
-    {
-        // Covers 1, 7, 13, 19, 25.
-        if (auto result = validate_unicode.operator()<false>(sv);
-            result.has_value())
-        {
-            return make_optional(result.value());
-        }
-        else
-        {
-            output_arg.append(sv);
-            return std::nullopt;
-        }
-    }
-    else if constexpr (( is_wchar_and_16_bit_c<InputChar>
-                         && same_as<OutputChar, char16_t> )
-                       || ( is_wchar_and_32_bit_c<InputChar>
-                            && same_as<OutputChar, char32_t> ) )
-    {
-        // Covers 9, 15
-        if (auto result = validate_unicode.operator()<false>(sv);
-            result.has_value())
-        {
-            return make_optional(result.value());
-        }
-        else
-        {
-            cast_wstring_to_unicode_string_append(sv, output_arg);
-            return std::nullopt;
-        }
-    }
-    else if constexpr (( is_wchar_and_16_bit_c<OutputChar>
-                         && same_as<InputChar, char16_t> )
-                       || ( is_wchar_and_32_bit_c<OutputChar>
-                            && same_as<InputChar, char32_t> ) )
-    {
-        // Covers 17, 23
-        if (auto result = validate_unicode.operator()<false>(sv);
-            result.has_value())
-        {
-            return result;
-        }
-        else
-        {
-            cast_unicode_string_to_wstring_append(sv, output_arg);
-            return std::nullopt;
-        }
-    }
-    else if constexpr (same_as<InputChar, char8_t>)
-    {
-        // Covers 6, 11, 16, 21
-        // Convert to char32_t as we go.
-        if constexpr (is_wchar_and_32_bit_c<OutputChar>)
-        {
-            optional<unicode_conversion_error> validated_res
-                = validate_unicode.operator()<false>(sv);
-            if (validated_res.has_value())
+            else if constexpr (std::same_as<OutputChar, char8_t>)
             {
-                return make_optional(validated_res);
-            }
-            else
-            {
-                cast_unicode_string_to_wstring_append(sv, output_arg);
-                return std::nullopt;
-            }
-        }
-        else if constexpr (same_as<char32_t, OutputChar>)
-        {
-            expected<u32string,unicode_conversion_error> validated_res
-                = validate_unicode.operator() <true > (sv);
-            if (validated_res.has_value())
-            {
-                output_arg.append(validated_res.value());
-                return std::nullopt;
-            }
-            else
-            {
-                return make_optional(validated_res.error());
+                add_char_to_unicode_string(character, rv);
             }
         }
         else
         {
-            unicode_conversion_result<u32string> validated_str
-                = validate_unicode.operator()<true>(sv);
-            if (validated_str.has_value())
-            {
-                u32string_view converted_str = validated_str.value();
-                if constexpr (same_as<char16_t, OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(converted_str);
-                }
-                else if constexpr (is_wchar_and_16_bit_c<OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(converted_str);
-                }
-                return std::nullopt;
-            }
-            else
-            {
-                return make_optional(validated_str.error());
-            }
+            return make_optional(unicode_conversion_error(
+                std::distance(begin_str, current_itt), next_char32.error()
+            ));
         }
     }
-    else if constexpr (same_as<char16_t, InputChar>)
-    {
-        if constexpr (is_wchar_and_32_bit_c<OutputChar>)
-        {
-            optional<unicode_conversion_error> validated_res
-                = validate_unicode.operator()<false>(sv);
-            if (validated_res.has_value())
-            {
-                return make_optional(validated_res);
-            }
-            else
-            {
-                cast_unicode_string_to_wstring_append(sv, output_arg);
-                return std::nullopt;
-            }
-        }
-        else if constexpr (same_as<char32_t, OutputChar>)
-        {
-            expected<u32string, unicode_conversion_error> validated_res
-                = validate_unicode.operator() < true > (sv);
-            if (validated_res.has_value())
-            {
-                output_arg.append(validated_res.value());
-                return std::nullopt;
-            }
-            else
-            {
-                return make_optional(validated_res.error());
-            }
-        }
-        else
-        {
-            unicode_conversion_result<u32string> validated_str
-                = validate_unicode.operator()<true>(sv);
-            if (validated_str.has_value())
-            {
-                u32string_view converted_str = validated_str.value();
-                if constexpr (same_as<char8_t, OutputChar>)
-                {
-                    convert_u32string_to_u8string_function(converted_str);
-                }
-                else if constexpr (is_wchar_and_16_bit_c<OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(converted_str);
-                }
-                return std::nullopt;
-            }
-            else
-            {
-                return make_optional(validated_str.error());
-            }
-        }
-    }
-    else if constexpr (same_as<char32_t, InputChar>)
-    {
-        optional<unicode_conversion_error> validated_res
-            = validate_unicode.operator()<false>(sv);
-        if constexpr (is_wchar_and_32_bit_c<OutputChar>)
-        {
-            if (validated_res.has_value())
-            {
-                return make_optional(validated_res);
-            }
-            else
-            {
-                cast_unicode_string_to_wstring_append(sv, output_arg);
-                return std::nullopt;
-            }
-        }
-        else
-        {
-            if (validated_res.has_value())
-            {
-                return make_optional(validated_res.value());
-            }
-            else
-            {
-                if constexpr (same_as<char8_t, OutputChar>)
-                {
-                    convert_u32string_to_u8string_function(sv);
-                }
-                else if constexpr (is_wchar_and_16_bit_c<OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(sv);
-                }
-                else if constexpr (same_as<char16_t, OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(sv);
-                }
-                return std::nullopt;
-            }
-        }
-    }
-    else if constexpr (is_wchar_and_16_bit_c<InputChar>)
-    {
-        if constexpr (is_wchar_and_32_bit_c<OutputChar>)
-        {
-            optional<unicode_conversion_error> validated_res
-                = validate_unicode.operator()<false>(sv);
-            if (validated_res.has_value())
-            {
-                return make_optional(validated_res);
-            }
-            else
-            {
-                cast_unicode_string_to_wstring_append(sv, output_arg);
-                return std::nullopt;
-            }
-        }
-        else
-        {
-            unicode_conversion_result<u32string> validated_str
-                = validate_unicode.operator()<true>(sv);
-            if (validated_str.has_value())
-            {
-                u32string_view converted_str = validated_str.value();
-                if constexpr (same_as<char8_t, OutputChar>)
-                {
-                    convert_u32string_to_u8string_function(converted_str);
-                }
-                else if constexpr (is_wchar_and_16_bit_c<OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(converted_str);
-                }
-                return std::nullopt;
-            }
-            else
-            {
-                return make_optional(validated_str.error());
-            }
-        }
-    }
-    else if constexpr (is_wchar_and_32_bit_c<InputChar>)
-    {
-        optional<unicode_conversion_error> validated_res
-            = validate_unicode.operator()<false>(sv);
-        if constexpr (is_wchar_and_32_bit_c<OutputChar>)
-        {
-            if (validated_res.has_value())
-            {
-                return make_optional(validated_res);
-            }
-            else
-            {
-                cast_unicode_string_to_wstring_append(sv, output_arg);
-                return std::nullopt;
-            }
-        }
-        else
-        {
-            if (validated_res.value())
-            {
-                return make_optional(validated_res.value());
-            }
-            else
-            {
-                if constexpr (same_as<char8_t, OutputChar>)
-                {
-                    convert_u32string_to_u8string_function(sv);
-                }
-                else if constexpr (is_wchar_and_16_bit_c<OutputChar>)
-                {
-                    convert_u32string_to_u16string_function(sv);
-                }
-                return std::nullopt;
-            }
-        }
-    }
+    return std::nullopt;
 }
 
 template <typename OutputChar, typename ArgType>

@@ -1464,10 +1464,6 @@ inline void
                         );
                         if (get<1>(result_arg).has_value())
                         {
-                            if ((get<1>(result_arg).value()) != partial_str_res)
-                            {
-                                int x = 4;
-                            }
                             REQUIRE(
                                 (get<1>(result_arg).value()) == partial_str_res
                             );
@@ -1636,18 +1632,24 @@ inline void
                 }
                 if (get<1>(result_arg).has_value())
                 {
-                    if (not ((
-                        (get<1>(result_arg).value()) ==
+                    if (not (
+                            (get<1>(result_arg).value()) ==
 
-                        unicode_conversion_with_exception<CharT>(u32_output_string)
-                        )))
+                            unicode_conversion_with_exception<CharT>(
+                                u32_output_string
+                            )
+                        ))
                     {
-                        int x = 4;
+                        int  x = 4;
                         auto result{
-                    unicode_bridge::convert_ascii_to_unicode<CharT>(input_arg)
+                            unicode_bridge::convert_ascii_to_unicode<CharT>(
+                                input_arg
+                            )
                         };
                     }
-                    auto resk = unicode_conversion_with_exception<CharT>(u32_output_string);
+                    auto resk = unicode_conversion_with_exception<CharT>(
+                        u32_output_string
+                    );
                     REQUIRE(
                         (get<1>(result_arg).value()) ==
 
@@ -1878,7 +1880,7 @@ inline void
             {
                 if ((get<1>(result_arg).value()) == expected_output)
                 {
-                    int x = 4;
+                    int  x         = 4;
                     auto converted = unicode_conversion<CharU>(input_argument);
                 }
                 REQUIRE((get<1>(result_arg).value()) == expected_output);
@@ -1900,7 +1902,7 @@ inline void
             check_func({true, converted});
         }
         {
-            test_args = { true, basic_string<CharU>() };
+            test_args = {true, basic_string<CharU>()};
             basic_string<CharU> str;
             auto res = unicode_conversion_append(input_argument, str);
             if (res.has_value())
@@ -1914,8 +1916,8 @@ inline void
             check_func(test_args);
         }
         {
-            test_args = { true, basic_string<CharU>() };
-            auto res = unicode_conversion_no_error<CharU>(input_argument);
+            test_args = {true, basic_string<CharU>()};
+            auto res  = unicode_conversion_no_error<CharU>(input_argument);
             if (res.has_value())
             {
                 get<1>(test_args) = res.value();
@@ -1927,7 +1929,7 @@ inline void
             check_func(test_args);
         }
         {
-            test_args = { true, basic_string<CharU>() };
+            test_args = {true, basic_string<CharU>()};
             basic_string<CharU> str;
             auto res = unicode_conversion_append_no_error(input_argument, str);
             if (res)
@@ -1941,7 +1943,7 @@ inline void
             check_func(test_args);
         }
         {
-            test_args = { true, basic_string<CharU>() };
+            test_args = {true, basic_string<CharU>()};
             try
             {
                 auto res
@@ -1959,15 +1961,17 @@ inline void
             }
         }
         {
-            test_args = { true, basic_string<CharU>() };
+            test_args = {true, basic_string<CharU>()};
             try
             {
                 basic_string<CharU> str;
-                unicode_conversion_append_with_exception<CharU>(input_argument, str);
+                unicode_conversion_append_with_exception<CharU>(
+                    input_argument, str
+                );
                 get<1>(test_args) = str;
             }
             catch (const unicode_bridge_exception<unicode_conversion_error>&
-                unexpected_exception)
+                       unexpected_exception)
             {
                 get<1>(test_args) = unexpected(unexpected_exception.error());
             }
@@ -2040,41 +2044,186 @@ namespace unicode_bridge_testing
 template <typename T>
 inline void
     run_unicode_conversion_and_is_valid_unicode_on_invalid_strings(
-        const std::vector<std::pair<
+        const std::vector<std::tuple<
             std::basic_string<T>,
-            unicode_bridge::unicode_conversion_error>>& list_of_test_cases
+            unicode_bridge::unicode_conversion_error,
+            std::basic_string<T>>>& list_of_test_cases
     )
 {
     using namespace unicode_bridge;
     using namespace std;
-    for (auto&& [input_string, expected_error] : list_of_test_cases)
+    for (auto&& [input_string, expected_error, partial_str_res] :
+         list_of_test_cases)
     {
         CHECK(is_valid_unicode(input_string) == false);
         INFO("str = " << convert_unicode_to_string(input_string));
         auto test_func
             = [&]<typename TargetType, typename U>(const U input_argument)
         {
-            auto converted = unicode_conversion<TargetType>(input_argument);
-            if (converted.has_value())
+            auto check_func
+                = [&](const std::tuple<
+                      // Used to catch non-caught exceptions. False is "major
+                      // unknown failure".
+                      bool,
+                      // Catches the half-created output.
+                      std::optional<std::basic_string<TargetType>>,
+                      // Result and optional error.
+                      std::expected<
+                          std::basic_string<TargetType>,
+                          optional<unicode_conversion_error>>>& result_arg)
             {
-                FAIL("Unexpected successful call of unicode_conversion");
+                if (get<0>(result_arg) == false)
+                {
+                    INFO("Unknown functio failure");
+                    FAIL();
+                }
+                if (get<2>(result_arg).has_value())
+                {
+                    string output{"Unexpected successful unicode_conversion "
+                                  "conversion. result is \""};
+                    output.append(
+                        unicode_print(get<2>(result_arg).value()).str()
+                    );
+                    output.append("\"");
+                    FAIL(output);
+                }
+                else
+                {
+                    // Otherwise, test that the failure is the one expected.
+                    if (get<2>(result_arg).error().has_value())
+                    {
+                        auto& failure_result{get<2>(result_arg).error().value()
+                        };
+                        INFO(unicode_print(failure_result.message(input_string))
+                        );
+                        equal_unicode_error(failure_result, expected_error);
+                        auto normalised_res
+                            = unicode_conversion_with_exception<TargetType>(
+                                partial_str_res
+                            );
+                        if (get<1>(result_arg).has_value())
+                        {
+                            if ((
+                                (get<1>(result_arg).value()) != normalised_res
+                                ))
+                            {
+                                int x = 4;
+                            }
+                            REQUIRE(
+                                (get<1>(result_arg).value()) == normalised_res
+                            );
+                        }
+                    }
+                    else
+                    {
+                        SUCCEED();
+                    }
+                }
+            };
+            tuple<
+                bool,
+                optional<basic_string<TargetType>>,
+                expected<
+                    basic_string<TargetType>,
+                    optional<unicode_conversion_error>>>
+                test_arg;
+            {
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                auto converted = unicode_conversion<TargetType>(input_argument);
+                get<2>(test_arg) = converted;
+                check_func(test_arg);
             }
-            else
+
             {
-                equal_unicode_error(converted.error(), expected_error);
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                auto converted
+                    = unicode_conversion_no_error<TargetType>(input_argument);
+                if (converted.has_value())
+                {
+                    get<2>(test_arg) = converted.value();
+                }
+                else
+                {
+                    get<2>(test_arg) = unexpected(std::nullopt);
+                }
+                check_func(test_arg);
             }
-            try
+
             {
-                auto converted2 = unicode_conversion_with_exception<TargetType>(
-                    input_argument
-                );
-                FAIL("Unexpected successful call of "
-                     "unicode_conversion_with_exception.");
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                basic_string<TargetType> str;
+                auto converted = unicode_conversion_append(input_argument, str);
+                if (converted.has_value())
+                {
+                    get<2>(test_arg) = unexpected(converted.value());
+                    get<1>(test_arg) = str;
+                }
+                else
+                {
+                    get<2>(test_arg) = str;
+                }
+                check_func(test_arg);
             }
-            catch (const unicode_bridge_exception<unicode_conversion_error>&
-                       _exception)
             {
-                equal_unicode_error(_exception.error(), expected_error);
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                basic_string<TargetType> str;
+                auto                     converted
+                    = unicode_conversion_append_no_error(input_argument, str);
+                if (converted)
+                {
+                    get<2>(test_arg) = str;
+                }
+                else
+                {
+                    get<2>(test_arg) = unexpected(std::nullopt);
+                    get<1>(test_arg) = str;
+                }
+                check_func(test_arg);
+            }
+
+            {
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                try
+                {
+                    auto converted
+                        = unicode_conversion_with_exception<TargetType>(
+                            input_argument
+                        );
+                    get<2>(test_arg) = converted;
+                }
+                catch (const unicode_bridge_exception<unicode_conversion_error>&
+                           _exception)
+                {
+                    get<2>(test_arg) = unexpected(_exception.error());
+                }
+                catch (...)
+                {
+                    get<0>(test_arg) = false;
+                }
+                check_func(test_arg);
+            }
+
+            {
+                test_arg = {true, std::nullopt, basic_string<TargetType>()};
+                basic_string<TargetType> str;
+                try
+                {
+                    unicode_conversion_append_with_exception<TargetType>(
+                        input_argument, str
+                    );
+                    get<2>(test_arg) = str;
+                }
+                catch (const unicode_bridge_exception<unicode_conversion_error>&
+                           _exception)
+                {
+                    get<1>(test_arg) = str;
+                    get<2>(test_arg) = unexpected(_exception.error());
+                }
+                catch (...)
+                {
+                    get<0>(test_arg) = false;
+                }
+                check_func(test_arg);
             }
         };
         auto test_type = [&]<typename TargetType>()
@@ -2096,48 +2245,49 @@ inline void
 namespace unicode_bridge_test_cases
 {
 template <typename CharT>
-std::vector<std::pair<
+std::vector<std::tuple<
     std::basic_string<CharT>,
-    unicode_bridge::unicode_conversion_error>>
+    unicode_bridge::unicode_conversion_error,
+    std::basic_string<CharT>>>
     get_invalid_unicode_conversion_and_is_valid_unicode_data()
 {
     using namespace std;
     using namespace unicode_bridge;
     using namespace unicode_bridge_testing;
     using namespace unicode_bridge::internal;
-    std::array<std::u8string, 4>                               arr;
-    initializer_list<pair<u8string, unicode_conversion_error>> invalid_u8_errors
-        = {
+    std::array<std::u8string, 4> arr;
+    initializer_list<tuple<u8string, unicode_conversion_error, u8string>>
+        invalid_u8_errors = {
             {mk_unicode<char8_t>({0xFF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xFE}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFE)
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0x80)
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xBF)
                  )
-             )},
+             ), u8""},
             {u8string(u8"abc").append(mk_unicode<char8_t>({0xFF}, u8"def")),
              unicode_conversion_error(
                  3, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
                  )
-             )},
+             ), u8"abc"},
 
             {mk_unicode<char8_t>({0xC2}, u8""),
              unicode_conversion_error(
@@ -2146,7 +2296,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_2_found_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE2}, u8""),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::truncated_sequence(
@@ -2154,7 +2304,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8""),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::truncated_sequence(
@@ -2165,7 +2315,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_2
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0}, u8""),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::truncated_sequence(
@@ -2173,7 +2323,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90}, u8""),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::truncated_sequence(
@@ -2184,7 +2334,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_2
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}, u8""),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::truncated_sequence(
@@ -2195,8 +2345,7 @@ std::vector<std::pair<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_3
                  )
-             )},
-
+             ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2208,7 +2357,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
                  )
-             )},
+             ), u8""},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90}, u8"def"),
              unicode_conversion_error(
                  3, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2220,7 +2369,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2_3
                  )
-             )},
+             ), u8"abc"},
             {mk_unicode<char8_t>({0xC2, 0x00}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2232,7 +2381,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xC2, 0x20}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2244,7 +2393,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xC2, 0xC0}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2256,7 +2405,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2268,7 +2417,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2280,7 +2429,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_1
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2292,7 +2441,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2304,7 +2453,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_3
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -2316,8 +2465,7 @@ std::vector<std::pair<
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1
                  )
-             )},
-
+             ), u8""},
             {mk_unicode<char8_t>({0xC0, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2327,7 +2475,7 @@ std::vector<std::pair<
                       u8'\0'},
              2, U'\0'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xC1, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2337,7 +2485,7 @@ std::vector<std::pair<
                       u8'\0'},
              2, U'\x7F'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2347,7 +2495,7 @@ std::vector<std::pair<
                       u8'\0'},
              3, U'\0'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x81, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2357,7 +2505,7 @@ std::vector<std::pair<
                       u8'\0'},
              3, U'\x7F'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x9F, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2367,7 +2515,7 @@ std::vector<std::pair<
                       u8'\0'},
              3, U'\x7FF'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2377,7 +2525,7 @@ std::vector<std::pair<
                       static_cast<char8_t>(0x80)},
              4, U'\0'
                  )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::overlong_encoding(
@@ -2387,8 +2535,7 @@ std::vector<std::pair<
                       static_cast<char8_t>(0xBF)},
              4, U'\x3F'
                  )
-             )},
-
+             ), u8""},
             {mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2399,7 +2546,7 @@ std::vector<std::pair<
                           u8'\0'},
              3, U'\xD800'
                      )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xED, 0xAF, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2410,7 +2557,7 @@ std::vector<std::pair<
                           u8'\0'},
              3, U'\xDBFF'
                      )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xED, 0xB0, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2421,7 +2568,7 @@ std::vector<std::pair<
                           u8'\0'},
              3, U'\xDC00'
                      )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xED, 0xBF, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2432,7 +2579,7 @@ std::vector<std::pair<
                           u8'\0'},
              3, U'\xDFFF'
                      )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF4, 0x90, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2443,7 +2590,7 @@ std::vector<std::pair<
                           static_cast<char8_t>(0x80)},
              4, U'\x110000'
                      )
-             )},
+             ), u8""},
             {mk_unicode<char8_t>({0xF7, 0xBF, 0xBF, 0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::
@@ -2454,7 +2601,7 @@ std::vector<std::pair<
                           static_cast<char8_t>(0xBF)},
              4, U'\x1FFFFF'
                      )
-             )},
+             ), u8""},
             {u8string(u8"abc")
                  + mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"def"),
              unicode_conversion_error(
@@ -2466,136 +2613,133 @@ std::vector<std::pair<
                           u8'\0'},
              3, U'\xD800'
                      )
-             )},
+             ), u8"abc"},
     };
-    initializer_list<pair<u16string, unicode_conversion_error>> invalid_u16_errors = {
+    initializer_list<tuple<u16string, unicode_conversion_error, u16string>> invalid_u16_errors = {
         {mk_unicode<char16_t>({0xD800}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  high_surrogate_then_end_of_stream(u'\xD800', same_as<CharT, wchar_t>)
-         )},
+         ), u""},
         {mk_unicode<char16_t>({0xDBFF}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
-         )},
+         ), u""},
         {u16string(u"hello") + mk_unicode<char16_t>({0xDBFF}, u""),
          unicode_conversion_error(
              5, forward_scan_unicode_error_factory::
                  high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
-         )},
-
+         ), u"hello"},
         {mk_unicode<char16_t>({0xDBFF}, u"hello"),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'h', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0xD800, 0xD801}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\xD801', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0xDBFF, 0x4E00}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'\x4E00', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0x0041, 0xD800, 0x0042, 0x0043}, u""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
                  high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\x0042', same_as<CharT, wchar_t>)
-         )},
-
+), u"A" },
         {mk_unicode<char16_t>({0xDC00}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0xDFFF}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  unexpected_low_surrogate(u'\xDFFF', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0x0041, 0x0042, 0xDC00}, u""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
                  unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         )},
+         ), u"AB" },
         {mk_unicode<char16_t>({0xDC00, 0x0041, 0x0042}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
         {mk_unicode<char16_t>({0xDC00, 0xDC01}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         )},
+         ), u"" },
     };
-    initializer_list<pair<u32string, unicode_conversion_error>> invalid_u32_errors = {
+    initializer_list<tuple<u32string, unicode_conversion_error,u32string>> invalid_u32_errors = {
         {mk_unicode<char32_t>({0xD800},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0xDBFF},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xDBFF',     same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0xDC00},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xDC00',     same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0xDFFF},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xDFFF',     same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0xD800},    U""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-         )},
+         ), U"AB" },
         {mk_unicode<char32_t>({0x0041, 0xD800, 0x0042},    U""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-         )},
-
+), U"A" },
         {mk_unicode<char32_t>({0x11'0000},                 U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0x20'0000},                 U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\x200000',   same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0xFFFF'FFFF},               U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\xFFFFFFFF', same_as<CharT, wchar_t>)
-         )},
+         ), U"" },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0x11'0000}, U""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
-         )},
+         ), U"AB" },
         {mk_unicode<char32_t>({0x0041, 0x11'0000, 0x0042}, U""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
                  invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
-         )},
+         ), U"A" },
     };
-    vector<pair<basic_string<CharT>, unicode_conversion_error>> rv;
+    vector<tuple<basic_string<CharT>, unicode_conversion_error, basic_string<CharT>>> rv;
     auto fill_vector_func = [&]<typename T>(T list_arg)
     {
-        for (auto& [unicode_str, err] : list_arg)
+        for (auto& [unicode_str, err, partial_str] : list_arg)
         {
-            rv.push_back(make_pair(spl_convert<CharT>(unicode_str), err));
+            rv.push_back(make_tuple(spl_convert<CharT>(unicode_str), err, spl_convert<CharT>(partial_str)));
         }
     };
     if constexpr (same_as<char8_t, CharT>)
