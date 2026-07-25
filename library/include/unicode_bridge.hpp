@@ -793,6 +793,8 @@ private:
     forward_scan_unicode_error _forward_scan_unicode_error;
     //! Contains position of where error occoured.
     std::size_t _character_index;
+    //! Number of characters written to the output string.
+    std::size_t _partial_output_size;
     /*!
      * @brief Given a string object, creates the error
      * message for the object.
@@ -821,7 +823,8 @@ public:
      */
     constexpr unicode_conversion_error(
         const std::size_t                 character_index_arg,
-        const forward_scan_unicode_error& basic_unicode_error_arg
+        const forward_scan_unicode_error& basic_unicode_error_arg,
+        const std::size_t                 partial_output_size_arg
     ) noexcept;
     /*!
      * @brief Gets the object's forward_scan_unicode_error.
@@ -835,6 +838,14 @@ public:
      */
     constexpr const std::size_t
         character_index() const noexcept;
+    /*!
+     * @brief Getst he object's number of characters written to the output
+     * before failure.
+     * @return std::size_t representing the number of characters written to the
+     * output.
+     */
+    constexpr std::size_t
+        partial_output_size() const noexcept;
     /*!
      * @brief Creates error message.
      *
@@ -884,7 +895,10 @@ struct ascii_to_unicode_error
 private:
     //! Character found that is invalid.
     char _character;
-    //! The index of the character.
+    //! The index of the character where the error occoured.
+    //! Note that this is the same as the number of characters written to the
+    //! output string, as each ASCII character will only take up a single
+    //! Unicode scalar value.
     std::size_t _index;
     /*!
      * @brief Given an ASCII string object, creates the error
@@ -1505,7 +1519,7 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_unicode_to_ascii_append_no_error(
         ArgType      str_arg,
         std::string& str_to_append_to_arg
@@ -1547,7 +1561,7 @@ constexpr std::optional<std::string>
     convert_unicode_to_ascii_no_error(const InputChar char_arg) noexcept;
 template <typename InputChar>
 requires char_type_is_unicode_c<InputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_unicode_to_ascii_append_no_error(
         const InputChar char_arg,
         std::string&    str_to_append_to_arg
@@ -1659,7 +1673,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
 template <typename OutputChar, typename ArgType>
 requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<ArgType, std::string_view>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_ascii_to_unicode_append_no_error(
         ArgType                        str_arg,
         std::basic_string<OutputChar>& output_arg
@@ -1694,7 +1708,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
     convert_ascii_to_unicode_no_error(const char char_arg) noexcept;
 template <typename OutputChar>
 requires char_type_is_unicode_c<OutputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_ascii_to_unicode_append_no_error(
         const char                     char_arg,
         std::basic_string<OutputChar>& output_arg
@@ -1811,7 +1825,7 @@ requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
-constexpr bool
+constexpr std::optional<std::size_t>
     unicode_conversion_append_no_error(
         ArgType                        str_arg,
         std::basic_string<OutputChar>& output_arg
@@ -1852,7 +1866,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
     unicode_conversion_no_error(const InputChar char_arg) noexcept;
 template <typename OutputChar, typename InputChar>
 requires char_type_is_unicode_c<OutputChar> && char_type_is_unicode_c<InputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     unicode_conversion_append_no_error(
         const InputChar                char_arg,
         std::basic_string<OutputChar>& output_arg
@@ -2748,7 +2762,8 @@ struct unicode_to_ascii_error_factory
             const char32_t                character_arg,
             const std::array<char8_t, 4>& utf8_chars_arg,
             const std::size_t             index_arg,
-            const std::uint8_t            length_of_chars_arg
+            const std::uint8_t            length_of_chars_arg,
+            const std::size_t             partial_output_size_arg
         ) noexcept;
     static constexpr unicode_to_ascii_error
         non_ascii_character_found_from_utf16(
@@ -2756,18 +2771,21 @@ struct unicode_to_ascii_error_factory
             const std::array<char16_t, 2>& utf16_chars_arg,
             const std::size_t              index_arg,
             const std::uint8_t             length_of_chars_arg,
-            const bool                     is_wchar_arg
+            const bool                     is_wchar_arg,
+            const std::size_t              partial_output_size_arg
         ) noexcept;
     static constexpr unicode_to_ascii_error
         non_ascii_character_found_from_utf32(
             const char32_t    character_arg,
             const std::size_t index_arg,
-            const bool        is_wchar_arg
+            const bool        is_wchar_arg,
+            const std::size_t partial_output_size_arg
         ) noexcept;
     static constexpr unicode_to_ascii_error
         invalid_unicode_character(
             const std::size_t                 index_arg,
-            const forward_scan_unicode_error& unicode_error_arg
+            const forward_scan_unicode_error& unicode_error_arg,
+            const std::size_t                 partial_output_size_arg
         ) noexcept;
 };
 
@@ -3192,11 +3210,11 @@ constexpr std::optional<std::pair<char32_t, std::size_t>>
         const std::u32string_view str_arg
     ) noexcept;
 
-template <bool Return_u32string>
+/*template <bool Return_u32string>
 constexpr unicode_conversion_result<
     std::conditional_t<Return_u32string, std::u32string, std::monostate>>
     validate_u8string_and_convert_to_u32string(const std::u8string_view str_arg
-    ) noexcept;
+    ) noexcept;*/
 
 template <bool Return_u32string, typename Original_Type>
 requires char_type_is_unicode_c<Original_Type>
@@ -3213,7 +3231,8 @@ template <typename CharT, typename CharU>
 constexpr void
     add_char_to_unicode_string(
         const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
+        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg,
+        std::size_t& n_elements_added_arg
     ) noexcept;
 template <bool Return_Reason, typename T, typename Original_Value_Type>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
@@ -4366,10 +4385,12 @@ constexpr std::u8string
 
 constexpr unicode_conversion_error::unicode_conversion_error(
     const std::size_t                 character_index_arg,
-    const forward_scan_unicode_error& basic_unicode_error_arg
+    const forward_scan_unicode_error& basic_unicode_error_arg,
+    const std::size_t                 partial_output_size_arg
 ) noexcept
     : _forward_scan_unicode_error(basic_unicode_error_arg)
     , _character_index(character_index_arg)
+    , _partial_output_size(partial_output_size_arg)
 {}
 
 constexpr const forward_scan_unicode_error&
@@ -4382,6 +4403,12 @@ constexpr const std::size_t
     unicode_conversion_error::character_index() const noexcept
 {
     return _character_index;
+}
+
+constexpr std::size_t
+    unicode_conversion_error::partial_output_size() const noexcept
+{
+    return _partial_output_size;
 }
 
 constexpr std::u8string
@@ -5261,10 +5288,11 @@ constexpr std::optional<unicode_to_ascii_error>
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = char_type_of_t<ArgType>;
     basic_string_view<CharT> sv(str_arg);
-    using itt            = typename basic_string_view<CharT>::const_iterator;
-    itt  string_iterator = sv.begin();
-    itt  string_iterator_end = sv.end();
-    auto str_inserter(back_inserter(str_to_append_to_arg));
+    using itt              = typename basic_string_view<CharT>::const_iterator;
+    itt    string_iterator = sv.begin();
+    itt    string_iterator_end = sv.end();
+    auto   str_inserter(back_inserter(str_to_append_to_arg));
+    size_t chars_written{0};
     for (size_t idx{0}; string_iterator != string_iterator_end; ++idx)
     {
         const auto character{*string_iterator};
@@ -5274,6 +5302,7 @@ constexpr std::optional<unicode_to_ascii_error>
         {
             str_inserter = character;
             ++string_iterator;
+            ++chars_written;
         }
         else
         {
@@ -5304,7 +5333,8 @@ constexpr std::optional<unicode_to_ascii_error>
                                 character_res.value().first,
                                 u8_chars,
                                 idx,
-                                character_res.value().second
+                                character_res.value().second,
+                                chars_written
                             )
                     );
                 }
@@ -5317,32 +5347,38 @@ constexpr std::optional<unicode_to_ascii_error>
                            (character_res.value().second > 1)
                                ? *(string_iterator + 1)
                                : zero<CharT>()};
-                    return make_optional(unicode_to_ascii_error_factory::
-                                 non_ascii_character_found_from_utf16(
-                                     character_res.value().first,
-                                     u16_chars,
-                                     idx,
-                                     character_res.value().second,
-                                     same_as<CharT, wchar_t>
-                                 ));
+                    return make_optional(
+                        unicode_to_ascii_error_factory::
+                            non_ascii_character_found_from_utf16(
+                                character_res.value().first,
+                                u16_chars,
+                                idx,
+                                character_res.value().second,
+                                same_as<CharT, wchar_t>,
+                                chars_written
+                            )
+                    );
                 }
                 else if constexpr (same_as<CharT, char32_t>
                                    || wchar_is_32_bit
                                           && same_as<CharT, wchar_t>)
                 {
-                    return make_optional(unicode_to_ascii_error_factory::
-                                 non_ascii_character_found_from_utf32(
-                                     character_res.value().first,
-                                     idx,
-                                     same_as<CharT, wchar_t>
-                                 ));
+                    return make_optional(
+                        unicode_to_ascii_error_factory::
+                            non_ascii_character_found_from_utf32(
+                                character_res.value().first,
+                                idx,
+                                same_as<CharT, wchar_t>,
+                                chars_written
+                            )
+                    );
                 }
             }
             else
             {
                 return make_optional(
                     unicode_to_ascii_error_factory::invalid_unicode_character(
-                        idx, character_res.error()
+                        idx, character_res.error(), chars_written
                     )
                 );
             }
@@ -5379,7 +5415,7 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_unicode_to_ascii_append_no_error(
         ArgType      str_arg,
         std::string& str_to_append_to_arg
@@ -5388,7 +5424,14 @@ constexpr bool
     using namespace std;
     auto result
         = convert_unicode_to_ascii_append(str_arg, str_to_append_to_arg);
-    return not result.has_value();
+    if (result.has_value())
+    {
+        return make_optional(result.value().error().partial_output_size());
+    }
+    else
+    {
+        return std::nullopt;
+    }
 }
 
 template <typename InputChar>
@@ -5436,7 +5479,7 @@ constexpr std::optional<std::string>
 
 template <typename InputChar>
 requires char_type_is_unicode_c<InputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_unicode_to_ascii_append_no_error(
         const InputChar char_arg,
         std::string&    str_to_append_to_arg
@@ -5595,7 +5638,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
 template <typename OutputChar, typename ArgType>
 requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<ArgType, std::string_view>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_ascii_to_unicode_append_no_error(
         ArgType                        str_arg,
         std::basic_string<OutputChar>& output_arg
@@ -5606,11 +5649,11 @@ constexpr bool
     auto res = convert_ascii_to_unicode_append<OutputChar>(str_arg, output_arg);
     if (res.has_value())
     {
-        return false;
+        return make_optional(res.value().get_index());
     }
     else
     {
-        return true;
+        return std::nullopt;
     }
 }
 
@@ -5659,7 +5702,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
 
 template <typename OutputChar>
 requires char_type_is_unicode_c<OutputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     convert_ascii_to_unicode_append_no_error(
         const char                     char_arg,
         std::basic_string<OutputChar>& output_arg
@@ -5770,12 +5813,13 @@ constexpr std::optional<unicode_conversion_error>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar  = char_type_of_t<ArgType>;
-    auto sv          = basic_string_view<InputChar>(str_arg);
-    auto rv          = std::back_inserter(output_arg);
-    auto begin_str   = std::begin(sv);
-    auto end_str     = std::end(sv);
-    auto current_itt = begin_str;
+    using InputChar    = char_type_of_t<ArgType>;
+    auto   sv          = basic_string_view<InputChar>(str_arg);
+    auto   rv          = std::back_inserter(output_arg);
+    auto   begin_str   = std::begin(sv);
+    auto   end_str     = std::end(sv);
+    auto   current_itt = begin_str;
+    size_t chars_written{0};
     while (current_itt != end_str)
     {
         auto next_char32 = forward_scan_for_next_char32<
@@ -5790,6 +5834,7 @@ constexpr std::optional<unicode_conversion_error>
                           || is_wchar_and_32_bit_c<OutputChar>)
             {
                 output_arg.push_back(static_cast<OutputChar>(character));
+                ++chars_written;
             }
             else if constexpr (std::same_as<OutputChar, char16_t>
                                || is_wchar_and_16_bit_c<OutputChar>)
@@ -5800,6 +5845,7 @@ constexpr std::optional<unicode_conversion_error>
                 {
                     // BMP (Basic Multilingual Plane)
                     rv = static_cast<OutputChar>(character);
+                    ++chars_written;
                 }
                 else if (character <= char32_limit<char32_t>())
                 {
@@ -5818,6 +5864,7 @@ constexpr std::optional<unicode_conversion_error>
                         (character_cpy & 0b0011'1111'1111)
                         + low_surrogate_lower_value<char32_t>()
                     );
+                    chars_written += 2;
                 }
                 else
                 {
@@ -5826,13 +5873,15 @@ constexpr std::optional<unicode_conversion_error>
             }
             else if constexpr (std::same_as<OutputChar, char8_t>)
             {
-                add_char_to_unicode_string(character, rv);
+                add_char_to_unicode_string(character, rv, chars_written);
             }
         }
         else
         {
             return make_optional(unicode_conversion_error(
-                std::distance(begin_str, current_itt), next_char32.error()
+                std::distance(begin_str, current_itt),
+                next_char32.error(),
+                chars_written
             ));
         }
     }
@@ -5868,7 +5917,7 @@ requires char_type_is_unicode_c<OutputChar>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
-constexpr bool
+constexpr std::optional<std::size_t>
     unicode_conversion_append_no_error(
         ArgType                        str_arg,
         std::basic_string<OutputChar>& output_arg
@@ -5878,11 +5927,11 @@ constexpr bool
     auto result = unicode_conversion_append(str_arg, output_arg);
     if (result.has_value())
     {
-        return false;
+        return make_optional(result.value().partial_output_size());
     }
     else
     {
-        return true;
+        return std::nullopt;
     }
 }
 
@@ -5936,7 +5985,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
 
 template <typename OutputChar, typename InputChar>
 requires char_type_is_unicode_c<OutputChar> && char_type_is_unicode_c<InputChar>
-constexpr bool
+constexpr std::optional<std::size_t>
     unicode_conversion_append_no_error(
         const InputChar                char_arg,
         std::basic_string<OutputChar>& output_arg
@@ -5946,11 +5995,11 @@ constexpr bool
     auto result = unicode_conversion_append(char_arg, output_arg);
     if (result.has_value())
     {
-        return false;
+        return make_optional(result.value().partial_output_size());
     }
     else
     {
-        return true;
+        return std::nullopt;
     }
 }
 
@@ -6032,8 +6081,30 @@ constexpr bool
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar = char_type_of_t<ArgType>;
-    auto sv         = basic_string_view<InputChar>(str_arg);
+    using InputChar        = char_type_of_t<ArgType>;
+    auto sv                = basic_string_view<InputChar>(str_arg);
+    auto validate_u8string = [&]() -> bool
+    {
+        auto str_iterator_end{std::end(sv)};
+        for (auto str_iterator{std::begin(sv)};
+             str_iterator != str_iterator_end;)
+        {
+            auto next_char_result{forward_scan_for_next_char32<
+                true,
+                decltype(str_iterator),
+                char8_t>(str_iterator, str_iterator_end)};
+            if (next_char_result.has_value())
+            {
+                auto& [character, iterator_offset]{next_char_result.value()};
+                std::advance(str_iterator, iterator_offset);
+            }
+            else
+            {
+                return false;
+            }
+        }
+        return true;
+    };
     if constexpr (same_as<InputChar, wchar_t>)
     {
         return is_valid_unicode(cast_wstring_to_unicode_string(sv));
@@ -6050,8 +6121,7 @@ constexpr bool
     }
     else if constexpr (same_as<InputChar, char8_t>)
     {
-        return validate_u8string_and_convert_to_u32string<false>(sv).has_value(
-        );
+        return validate_u8string();
     }
     else
     {
@@ -6433,8 +6503,9 @@ constexpr std::basic_string<OutputChar>
                 }
                 else
                 {
+                    size_t elements = 0;
                     add_char_to_unicode_string(
-                        character_opt.value(), return_value_inserter
+                        character_opt.value(), return_value_inserter, elements
                     );
                 }
             }
@@ -6744,7 +6815,8 @@ constexpr unicode_to_ascii_error
         const char32_t                character_arg,
         const std::array<char8_t, 4>& utf8_chars_arg,
         const std::size_t             index_arg,
-        const std::uint8_t            length_of_chars
+        const std::uint8_t            length_of_chars,
+        const std::size_t             partial_output_size_arg
     ) noexcept
 {
     return unicode_to_ascii_error(
@@ -6764,7 +6836,8 @@ constexpr unicode_to_ascii_error
                     {u'\0', u'\0'},
                     false
                 )
-            )
+            ),
+            partial_output_size_arg
         )
     );
 }
@@ -6775,7 +6848,8 @@ constexpr unicode_to_ascii_error
         const std::array<char16_t, 2>& utf16_chars_arg,
         const std::size_t              index_arg,
         const std::uint8_t             length_of_chars,
-        const bool                     is_wchar_arg
+        const bool                     is_wchar_arg,
+        const std::size_t              partial_output_size_arg
     ) noexcept
 {
     return unicode_to_ascii_error(
@@ -6795,7 +6869,8 @@ constexpr unicode_to_ascii_error
                     utf16_chars_arg,
                     is_wchar_arg
                 )
-            )
+            ),
+            partial_output_size_arg
         )
     );
 }
@@ -6804,7 +6879,8 @@ constexpr unicode_to_ascii_error
     unicode_to_ascii_error_factory::non_ascii_character_found_from_utf32(
         const char32_t    character_arg,
         const std::size_t index_arg,
-        const bool        is_wchar_arg
+        const bool        is_wchar_arg,
+        const std::size_t partial_output_size_arg
     ) noexcept
 {
     return unicode_to_ascii_error(
@@ -6824,7 +6900,8 @@ constexpr unicode_to_ascii_error
                     {u'\0', u'\0'},
                     is_wchar_arg
                 )
-            )
+            ),
+            partial_output_size_arg
         )
     );
 }
@@ -6832,13 +6909,16 @@ constexpr unicode_to_ascii_error
 constexpr unicode_to_ascii_error
     unicode_to_ascii_error_factory::invalid_unicode_character(
         const std::size_t                 index_arg,
-        const forward_scan_unicode_error& unicode_error_arg
+        const forward_scan_unicode_error& unicode_error_arg,
+        const std::size_t                 partial_output_size_arg
     ) noexcept
 {
     return unicode_to_ascii_error(
         unicode_to_ascii_error::unicode_to_ascii_error_code::
             invalid_unicode_character,
-        unicode_conversion_error(index_arg, unicode_error_arg)
+        unicode_conversion_error(
+            index_arg, unicode_error_arg, partial_output_size_arg
+        )
     );
 }
 
@@ -7137,7 +7217,7 @@ constexpr std::optional<std::pair<char32_t, std::size_t>>
     return nullopt;
 }
 
-template <bool Return_u32string>
+/*template <bool Return_u32string>
 constexpr unicode_conversion_result<
     std::conditional_t<Return_u32string, std::u32string, std::monostate>>
     validate_u8string_and_convert_to_u32string(
@@ -7173,7 +7253,7 @@ constexpr unicode_conversion_result<
         }
     }
     return return_value;
-}
+}*/
 
 template <bool Return_u32string, typename Original_Type>
 requires char_type_is_unicode_c<Original_Type>
@@ -7224,7 +7304,8 @@ template <typename CharT, typename CharU>
 constexpr void
     add_char_to_unicode_string(
         const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
+        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg,
+        std::size_t& n_elements_added_arg
     ) noexcept
 {
     using namespace std;
@@ -7238,6 +7319,7 @@ constexpr void
         {
             // 1-byte UTF-8
             inserter_arg = static_cast<char8_t>(char_arg);
+            n_elements_added_arg++;
         }
         else if (char_arg <= two_char8_limit<char32_t>())
         {
@@ -7250,6 +7332,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
+            n_elements_added_arg += 2;
         }
         else if (char_arg
                  <= single_char16_limit_and_three_char8_limit<char32_t>())
@@ -7263,6 +7346,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
+            n_elements_added_arg += 3;
         }
         else if (char_arg <= char32_limit<char32_t>())
         {
@@ -7278,6 +7362,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
+            n_elements_added_arg += 4;
         }
         else
         {
@@ -7292,6 +7377,7 @@ constexpr void
         for (auto&& character : res)
         {
             inserter_arg = character;
+            n_elements_added_arg++;
         }
     }
 }

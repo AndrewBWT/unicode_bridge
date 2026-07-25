@@ -369,13 +369,13 @@ inline void
                     = {true, ""};
                 auto res
                     = convert_unicode_to_ascii_append_no_error(input_arg, str);
-                if (res)
+                if (res.has_value())
                 {
-                    get<1>(test_args) = str;
+                    get<0>(test_args) = false;
                 }
                 else
                 {
-                    get<0>(test_args) = false;
+                    get<1>(test_args) = str;
                 }
                 check_func(test_args);
             }
@@ -412,7 +412,7 @@ inline void
                       // unknown failure".
                       bool,
                       // Catches the half-created output.
-                      std::optional<std::string>,
+                      std::optional<std::pair<std::string, std::size_t>>,
                       // Result and optional error.
                       std::expected<
                           std::string,
@@ -451,7 +451,16 @@ inline void
                         if (get<1>(result_arg).has_value())
                         {
                             REQUIRE(
-                                (get<1>(result_arg).value()) == partial_str_res
+                                (get<1>(result_arg).value().first)
+                                == partial_str_res
+                            );
+                            REQUIRE(
+                                (get<1>(result_arg).value().second)
+                                == (get<2>(result_arg)
+                                        .error()
+                                        .value()
+                                        .error()
+                                        .partial_output_size())
                             );
                         }
                     }
@@ -470,7 +479,7 @@ inline void
             {
                 tuple<
                     bool,
-                    optional<string>,
+                    optional<pair<string, size_t>>,
                     expected<string, optional<unicode_to_ascii_error>>>
                     to_check_arg = {true, std::nullopt, ""};
 
@@ -501,7 +510,10 @@ inline void
                 };
                 check_func(
                     {true,
-                     make_optional(str_result),
+                     make_optional(make_pair(
+                         str_result,
+                         result.value().error().partial_output_size()
+                     )),
                      not result.has_value()
                          ? expected<string, unicode_to_ascii_error>(str_result)
                          : unexpected(result.value())}
@@ -526,18 +538,18 @@ inline void
                 );
                 check_func(
                     {true,
-                     str_res,
-                     result
-                         ? expected<string, optional<unicode_to_ascii_error>>(
+                     make_pair(str_res, result.value()),
+                     result.has_value()
+                         ? unexpected(std::nullopt)
+                         : expected<string, optional<unicode_to_ascii_error>>(
                                str_res
-                           )
-                         : unexpected(std::nullopt)}
+                           )}
                 );
             }
             {
                 tuple<
                     bool,
-                    optional<string>,
+                    optional<pair<string, size_t>>,
                     expected<string, optional<unicode_to_ascii_error>>>
                        to_check_arg = {true, std::nullopt, ""};
                 string str;
@@ -555,12 +567,17 @@ inline void
                 {
                     get<2>(to_check_arg)
                         = unexpected(unexpected_exception.error());
+                    get<1>(to_check_arg) = make_pair(
+                        str,
+                        unexpected_exception.error()
+                            .error()
+                            .partial_output_size()
+                    );
                 }
                 catch (...)
                 {
                     get<0>(to_check_arg) = false;
                 }
-                get<1>(to_check_arg) = str;
                 check_func(to_check_arg);
             }
         };
@@ -675,13 +692,13 @@ std::vector<std::tuple<
               u"ℝ┹ⶬ⯿⎣⊚⻀→⇮⸣⽛╡⽛ⱕ⩳",
               U"ℝ┹ⶬ⯿⎣⊚⻀→⇮⸣⽛╡⽛ⱕ⩳"},
              unicode_to_ascii_error_factory::
-                 non_ascii_character_found_from_utf32(U'ℝ', 0, true),
+                 non_ascii_character_found_from_utf32(U'ℝ', 0, true, 0),
              ""  },
             {{u8"aaℝ┹ⶬ⯿⎣⊚⻀→⇮⸣⽛╡⽛ⱕ⩳ⷽ",
               u"aaℝ┹ⶬ⯿⎣⊚⻀→⇮⸣⽛╡⽛ⱕ⩳",
               U"aaℝ┹ⶬ⯿⎣⊚⻀→⇮⸣⽛╡⽛ⱕ⩳"},
              unicode_to_ascii_error_factory::
-                 non_ascii_character_found_from_utf32(U'ℝ', 2, true),
+                 non_ascii_character_found_from_utf32(U'ℝ', 2, true, 0),
              "aa"}
     };
     initializer_list<tuple<u8string, unicode_to_ascii_error, string>>
@@ -690,31 +707,31 @@ std::vector<std::tuple<
              unicode_to_ascii_error_factory::invalid_unicode_character(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xFE}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFE)
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0x80)
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xBF)
-                 )
+                 ), 0
              ), ""},
             {u8string(u8"abc").append(mk_unicode<char8_t>({0xFF}, u8"def")),
              unicode_to_ascii_error_factory::invalid_unicode_character(
                  3, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
-                 )
+                 ), 3
              ), "abc"},
             {mk_unicode<char8_t>({0xC2}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -722,7 +739,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_2_found_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE2}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -730,7 +747,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE2, 0x80}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -741,7 +758,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_2
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -749,7 +766,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x90}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -760,7 +777,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_2
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -771,7 +788,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_3
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -783,7 +800,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
-                 )
+                 ), 0
              ), ""},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90}, u8"def"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -795,7 +812,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2_3
-                 )
+                 ), 3
              ), "abc"},
             {mk_unicode<char8_t>({0xC2, 0x00}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -807,7 +824,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xC2, 0x20}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -819,7 +836,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xC2, 0xC0}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -831,7 +848,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -843,7 +860,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE2, 0x20, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -855,7 +872,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -867,7 +884,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -879,7 +896,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_3
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -891,7 +908,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xC0, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -901,7 +918,7 @@ std::vector<std::tuple<
                       u8'\0',
                       u8'\0'},
              2, U'\0'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xC1, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -911,7 +928,7 @@ std::vector<std::tuple<
                       u8'\0',
                       u8'\0'},
              2, U'\x7F'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE0, 0x80, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -921,7 +938,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       u8'\0'},
              3, U'\0'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE0, 0x81, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -931,7 +948,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       u8'\0'},
              3, U'\x7F'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xE0, 0x9F, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -941,7 +958,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       u8'\0'},
              3, U'\x7FF'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -951,7 +968,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0x80)},
              4, U'\0'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -961,7 +978,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0xBF)},
              4, U'\x3F'
-                 )
+                 ), 0
              ), ""},
             {mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -972,7 +989,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xD800'
-                     )
+                     ), 0
              ), ""},
             {mk_unicode<char8_t>({0xED, 0xAF, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -983,7 +1000,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           u8'\0'},
              3, U'\xDBFF'
-                     )
+                     ), 0
              ), ""},
             {mk_unicode<char8_t>({0xED, 0xB0, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -994,7 +1011,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xDC00'
-                     )
+                     ), 0
              ), ""},
             {mk_unicode<char8_t>({0xED, 0xBF, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -1005,7 +1022,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           u8'\0'},
              3, U'\xDFFF'
-                     )
+                     ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF4, 0x90, 0x80, 0x80}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -1016,7 +1033,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           static_cast<char8_t>(0x80)},
              4, U'\x110000'
-                     )
+                     ), 0
              ), ""},
             {mk_unicode<char8_t>({0xF7, 0xBF, 0xBF, 0xBF}, u8"hello"),
              unicode_to_ascii_error_factory::invalid_unicode_character(
@@ -1027,7 +1044,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           static_cast<char8_t>(0xBF)},
              4, U'\x1FFFFF'
-                     )
+                     ), 0
              ), ""},
             {u8string(u8"abc")
                  + mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"def"),
@@ -1039,7 +1056,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xD800'
-                     )
+                     ), 3
              ), "abc"},
             {u8"😂",
              unicode_to_ascii_error_factory::
@@ -1048,7 +1065,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x9F),
                       static_cast<char8_t>(0x98),
                       static_cast<char8_t>(0x82)},
-             0, 4
+             0, 4,
+             0
                  ), ""},
             {u8"hello😂goodbye",
              unicode_to_ascii_error_factory::
@@ -1057,7 +1075,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x9F),
                       static_cast<char8_t>(0x98),
                       static_cast<char8_t>(0x82)},
-             5, 4
+             5, 4,
+             5
                  ), "hello"},
             {u8"€",
              unicode_to_ascii_error_factory::
@@ -1066,7 +1085,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x82),
                       static_cast<char8_t>(0xAC),
                       static_cast<char8_t>(0x00)},
-             0, 3
+             0, 3,
+             0
                  ), ""},
             {u8"hello€goodbye",
              unicode_to_ascii_error_factory::
@@ -1075,7 +1095,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x82),
                       static_cast<char8_t>(0xAC),
                       static_cast<char8_t>(0x00)},
-             5, 3
+             5, 3,
+             0
                  ), "hello"},
             {u8"é",
              unicode_to_ascii_error_factory::
@@ -1084,7 +1105,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xA9),
                       static_cast<char8_t>(0x00),
                       static_cast<char8_t>(0x00)},
-             0, 2
+             0, 2,
+             0
                  ), ""},
             {u8"helloégoodbye",
              unicode_to_ascii_error_factory::
@@ -1093,150 +1115,187 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xA9),
                       static_cast<char8_t>(0x00),
                       static_cast<char8_t>(0x00)},
-             5, 2
+             5, 2,
+             0
                  ), "hello"},
     };
     initializer_list<tuple<u16string, unicode_to_ascii_error, string>> invalid_u16_errors = {
         {mk_unicode<char16_t>({0xD800}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xD800', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xD800', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0xDBFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {u16string(u"hello") + mk_unicode<char16_t>({0xDBFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              5, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>),
+         5
          ), "hello"},
         {mk_unicode<char16_t>({0xDBFF}, u"hello"),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'h', same_as<CharT, wchar_t>)
+                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'h', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0xD800, 0xD801}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\xD801', same_as<CharT, wchar_t>)
+                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\xD801', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0xDBFF, 0x4E00}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'\x4E00', same_as<CharT, wchar_t>)
+                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'\x4E00', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0x0041, 0xD800, 0x0042, 0x0043}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              1, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\x0042', same_as<CharT, wchar_t>)
+                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\x0042', same_as<CharT, wchar_t>),
+         1
          ), "A"},
         {mk_unicode<char16_t>({0xDC00}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0xDFFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDFFF', same_as<CharT, wchar_t>)
+                 unexpected_low_surrogate(u'\xDFFF', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0x0041, 0x0042, 0xDC00}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              2, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         2
          ), "AB"},
         {mk_unicode<char16_t>({0xDC00, 0x0041, 0x0042}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {mk_unicode<char16_t>({0xDC00, 0xDC01}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
          ), ""},
         {u"é",
-         unicode_to_ascii_error_factory::
-             non_ascii_character_found_from_utf16(U'é', {static_cast<char16_t>(0x00E9), static_cast<char16_t>(0x0)}, 0, 1, std::same_as<CharT, wchar_t>),
-         ""},
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf16(
+             U'é', {static_cast<char16_t>(0x00E9), static_cast<char16_t>(0x0)},
+         0, 1,
+         std::same_as<CharT, wchar_t>,
+         0
+         ), ""},
         {u"helloégoodbye",
-         unicode_to_ascii_error_factory::
-             non_ascii_character_found_from_utf16(U'é', {static_cast<char16_t>(0x00E9), static_cast<char16_t>(0x0)}, 5, 1, std::same_as<CharT, wchar_t>),
-         "hello"},
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf16(
+             U'é', {static_cast<char16_t>(0x00E9), static_cast<char16_t>(0x0)},
+         5, 1,
+         std::same_as<CharT, wchar_t>,
+         5
+         ), "hello"},
         {u"😂",
-         unicode_to_ascii_error_factory::
-             non_ascii_character_found_from_utf16(U'😂', {static_cast<char16_t>(0xD83D), static_cast<char16_t>(0xDE02)}, 0, 2, std::same_as<CharT, wchar_t>),
-         ""},
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf16(
+             U'😂', {static_cast<char16_t>(0xD83D), static_cast<char16_t>(0xDE02)},
+         0, 2,
+         std::same_as<CharT, wchar_t>,
+         0
+         ), ""},
         {u"hello😂goodbye",
-         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf16(U'😂', {static_cast<char16_t>(0xD83D), static_cast<char16_t>(0xDE02)}, 5, 2, std::same_as<CharT, wchar_t>),
-         "hello"},
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf16(
+             U'😂', {static_cast<char16_t>(0xD83D), static_cast<char16_t>(0xDE02)},
+         5, 2,
+         std::same_as<CharT, wchar_t>,
+         5
+         ), "hello"},
     };
     initializer_list<tuple<u32string, unicode_to_ascii_error, string>> invalid_u32_errors = {
         {mk_unicode<char32_t>({0xD800}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0xDBFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDBFF',     same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xDBFF',     same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0xDC00}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDC00',     same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xDC00',     same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0xDFFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDFFF',     same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xDFFF',     same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0xD800}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             2,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>)
-         ),      "AB"},
+             2,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>),
+         2
+         ),                                                                                                      "AB"   },
         {mk_unicode<char32_t>({0x0041, 0xD800, 0x0042}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             1,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>)
-         ),      "A" },
+             1,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT,      wchar_t>),
+         1
+         ),                                                                                                      "A"    },
         {mk_unicode<char32_t>({0x11'0000}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0x20'0000}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x200000',   same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\x200000',   same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0xFFFF'FFFF}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             0,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xFFFFFFFF', same_as<CharT,      wchar_t>)
-         ),      ""  },
+             0,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\xFFFFFFFF', same_as<CharT,      wchar_t>),
+         0
+         ),                                                                                                      ""     },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0x11'0000}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             2,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>)
-         ),      "AB"},
+             2,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>),
+         2
+         ),                                                                                                      "AB"   },
         {mk_unicode<char32_t>({0x0041, 0x11'0000, 0x0042}),
          unicode_to_ascii_error_factory::invalid_unicode_character(
-             1,                                          forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>)
-         ),      "A" },
+             1,     forward_scan_unicode_error_factory::
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT,      wchar_t>),
+         1
+         ),                                                                                                      "A"    },
         {U"😂",
-         unicode_to_ascii_error_factory::
-             non_ascii_character_found_from_utf32(U'😂', 0,             std::same_as<CharT, wchar_t>),
-         ""                                                                                                },
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf32(
+             U'😂', 0,                                                  std::same_as<CharT, wchar_t>,  0
+         ), ""     },
         {U"hello😂goodbye",
-         unicode_to_ascii_error_factory::
-             non_ascii_character_found_from_utf32(U'😂', 5,             std::same_as<CharT, wchar_t>),
-         "hello"                                                                                           },
+         unicode_to_ascii_error_factory::non_ascii_character_found_from_utf32(
+             U'😂', 5,                                                  std::same_as<CharT, wchar_t>,  5
+         ), "hello"},
     };
     vector<tuple<basic_string<CharT>, unicode_to_ascii_error, string>> rv;
     for (auto& [unicode_strs, err, partial_str] : invalid_ascii_errors)
@@ -1390,7 +1449,7 @@ inline void
              unicode_conversion_with_exception<CharT>(u8"")     },
             {make_str({'\x41', '\x80'},           ""),
              ascii_to_unicode_error(1, '\x80'),
-             unicode_conversion_with_exception<CharT>(u8"")     },
+             unicode_conversion_with_exception<CharT>(u8"A")     },
 
             {make_str({'\xFF', '\xFE'},           ""),
              ascii_to_unicode_error(0, '\xFF'),
@@ -1399,7 +1458,7 @@ inline void
              ascii_to_unicode_error(0, '\x81'),
              unicode_conversion_with_exception<CharT>(u8"")     },
 
-            {string("hello") + make_str({'\x80'}, ""),
+            {string("hello") + make_str({'\x80'}, "hello"),
              ascii_to_unicode_error(5, '\x80'),
              unicode_conversion_with_exception<CharT>(u8"hello")},
             {make_str({'\x80'},                   "hello"),
@@ -1412,6 +1471,7 @@ inline void
     // Run invalid tests.
     for (auto&& [input_string, expected_arg, partial_str_res] : invalid_results)
     {
+        INFO("Input string " << input_string);
         auto run_func = [&]<typename T>(const T input_arg)
         {
             // Checks its valid ascii.
@@ -1422,7 +1482,7 @@ inline void
                       // unknown failure".
                       bool,
                       // Catches the half-created output.
-                      std::optional<std::basic_string<CharT>>,
+                      std::optional<pair<basic_string<CharT>, size_t>>,
                       // Result and optional error.
                       std::expected<
                           std::basic_string<CharT>,
@@ -1464,8 +1524,20 @@ inline void
                         );
                         if (get<1>(result_arg).has_value())
                         {
+                            if ((
+                                (get<1>(result_arg).value().first)
+                                != partial_str_res
+                                ))
+                            {
+                                int x = 4;
+                            }
                             REQUIRE(
-                                (get<1>(result_arg).value()) == partial_str_res
+                                (get<1>(result_arg).value().first)
+                                == partial_str_res
+                            );
+                            REQUIRE(
+                                (get<1>(result_arg).value().second)
+                                == expected_arg.get_index()
                             );
                         }
                     }
@@ -1477,7 +1549,7 @@ inline void
             };
             tuple<
                 bool,
-                optional<basic_string<CharT>>,
+                optional<pair<basic_string<CharT>,size_t>>,
                 expected<basic_string<CharT>, optional<ascii_to_unicode_error>>>
                 test_arg;
             {
@@ -1510,6 +1582,7 @@ inline void
                 {
                     get<0>(test_arg) = false;
                 }
+                check_func(test_arg);
             }
             {
                 test_arg
@@ -1559,14 +1632,14 @@ inline void
                     = unicode_bridge::convert_ascii_to_unicode_append_no_error(
                         input_arg, str
                     );
-                if (result)
+                if (result.has_value())
                 {
-                    get<2>(test_arg) = str;
+                    get<1>(test_arg) = make_pair(str,result.value());
+                    get<2>(test_arg) = unexpected(std::nullopt);
                 }
                 else
                 {
-                    get<1>(test_arg) = str;
-                    get<2>(test_arg) = unexpected(std::nullopt);
+                    get<2>(test_arg) = str;
                 }
                 check_func(test_arg);
             }
@@ -1588,13 +1661,14 @@ inline void
                 catch (const unicode_bridge_exception<ascii_to_unicode_error>&
                            unexpected_exception)
                 {
-                    get<1>(test_arg) = str;
+                    get<1>(test_arg) = make_pair(str, unexpected_exception.error().get_index());
                     get<2>(test_arg) = unexpected(unexpected_exception.error());
                 }
                 catch (...)
                 {
                     get<0>(test_arg) = false;
                 }
+                check_func(test_arg);
             }
         };
         run_all_string_types(run_func, input_string);
@@ -1718,13 +1792,13 @@ inline void
                         input_arg, str
                     )
                 };
-                if (result)
+                if (result.has_value())
                 {
-                    get<1>(test_args) = str;
+                    get<0>(test_args) = false;
                 }
                 else
                 {
-                    get<0>(test_args) = false;
+                    get<1>(test_args) = str;
                 }
                 check_func(test_args);
             }
@@ -1932,13 +2006,13 @@ inline void
             test_args = {true, basic_string<CharU>()};
             basic_string<CharU> str;
             auto res = unicode_conversion_append_no_error(input_argument, str);
-            if (res)
+            if (res.has_value())
             {
-                get<1>(test_args) = str;
+                get<0>(test_args) = false;
             }
             else
             {
-                get<0>(test_args) = false;
+                get<1>(test_args) = str;
             }
             check_func(test_args);
         }
@@ -2060,17 +2134,17 @@ inline void
         auto test_func
             = [&]<typename TargetType, typename U>(const U input_argument)
         {
-            auto check_func
-                = [&](const std::tuple<
-                      // Used to catch non-caught exceptions. False is "major
-                      // unknown failure".
-                      bool,
-                      // Catches the half-created output.
-                      std::optional<std::basic_string<TargetType>>,
-                      // Result and optional error.
-                      std::expected<
-                          std::basic_string<TargetType>,
-                          optional<unicode_conversion_error>>>& result_arg)
+            auto check_func =
+                [&](const std::tuple<
+                    // Used to catch non-caught exceptions. False is "major
+                    // unknown failure".
+                    bool,
+                    // Catches the half-created output.
+                    optional<std::pair<basic_string<TargetType>, std::size_t>>,
+                    // Result and optional error.
+                    std::expected<
+                        std::basic_string<TargetType>,
+                        optional<unicode_conversion_error>>>& result_arg)
             {
                 if (get<0>(result_arg) == false)
                 {
@@ -2103,14 +2177,13 @@ inline void
                             );
                         if (get<1>(result_arg).has_value())
                         {
-                            if ((
-                                (get<1>(result_arg).value()) != normalised_res
-                                ))
-                            {
-                                int x = 4;
-                            }
                             REQUIRE(
-                                (get<1>(result_arg).value()) == normalised_res
+                                (get<1>(result_arg).value().first)
+                                == normalised_res
+                            );
+                            REQUIRE(
+                                (get<1>(result_arg).value().second)
+                                == expected_error.partial_output_size()
                             );
                         }
                     }
@@ -2122,7 +2195,7 @@ inline void
             };
             tuple<
                 bool,
-                optional<basic_string<TargetType>>,
+                optional<std::pair<basic_string<TargetType>, std::size_t>>,
                 expected<
                     basic_string<TargetType>,
                     optional<unicode_conversion_error>>>
@@ -2156,7 +2229,8 @@ inline void
                 if (converted.has_value())
                 {
                     get<2>(test_arg) = unexpected(converted.value());
-                    get<1>(test_arg) = str;
+                    get<1>(test_arg
+                    ) = make_pair(str, converted.value().partial_output_size());
                 }
                 else
                 {
@@ -2169,14 +2243,14 @@ inline void
                 basic_string<TargetType> str;
                 auto                     converted
                     = unicode_conversion_append_no_error(input_argument, str);
-                if (converted)
+                if (converted.has_value())
                 {
-                    get<2>(test_arg) = str;
+                    get<2>(test_arg) = unexpected(std::nullopt);
+                    get<1>(test_arg) = make_pair(str, converted.value());
                 }
                 else
                 {
-                    get<2>(test_arg) = unexpected(std::nullopt);
-                    get<1>(test_arg) = str;
+                    get<2>(test_arg) = str;
                 }
                 check_func(test_arg);
             }
@@ -2216,7 +2290,9 @@ inline void
                 catch (const unicode_bridge_exception<unicode_conversion_error>&
                            _exception)
                 {
-                    get<1>(test_arg) = str;
+                    get<1>(test_arg) = make_pair(
+                        str, _exception.error().partial_output_size()
+                    );
                     get<2>(test_arg) = unexpected(_exception.error());
                 }
                 catch (...)
@@ -2262,31 +2338,31 @@ std::vector<std::tuple<
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xFE}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFE)
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0x80}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0x80)
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xBF}, u8"hello"),
              unicode_conversion_error(
                  0, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xBF)
-                 )
+                 ), 0
              ), u8""},
             {u8string(u8"abc").append(mk_unicode<char8_t>({0xFF}, u8"def")),
              unicode_conversion_error(
                  3, forward_scan_unicode_error_factory::invalid_leading_byte(
                      static_cast<char8_t>(0xFF)
-                 )
+                 ), 3
              ), u8"abc"},
 
             {mk_unicode<char8_t>({0xC2}, u8""),
@@ -2295,7 +2371,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_2_found_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE2}, u8""),
              unicode_conversion_error(
@@ -2303,7 +2379,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8""),
              unicode_conversion_error(
@@ -2314,7 +2390,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_2
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0}, u8""),
              unicode_conversion_error(
@@ -2322,7 +2398,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xF0), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90}, u8""),
              unicode_conversion_error(
@@ -2333,7 +2409,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_2
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80}, u8""),
              unicode_conversion_error(
@@ -2344,7 +2420,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_3
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2356,7 +2432,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
-                 )
+                 ), 0
              ), u8""},
             {u8string(u8"abc") + mk_unicode<char8_t>({0xF0, 0x90}, u8"def"),
              unicode_conversion_error(
@@ -2368,7 +2444,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2_3
-                 )
+                 ), 3
              ), u8"abc"},
             {mk_unicode<char8_t>({0xC2, 0x00}, u8"hello"),
              unicode_conversion_error(
@@ -2380,7 +2456,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xC2, 0x20}, u8"hello"),
              unicode_conversion_error(
@@ -2392,7 +2468,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xC2, 0xC0}, u8"hello"),
              unicode_conversion_error(
@@ -2404,7 +2480,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error(
@@ -2416,7 +2492,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE2, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2428,7 +2504,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x20, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2440,7 +2516,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x90, 0x80, 0x20}, u8"hello"),
              unicode_conversion_error(
@@ -2452,7 +2528,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_3
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x20, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2464,7 +2540,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xC0, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2474,7 +2550,7 @@ std::vector<std::tuple<
                       u8'\0',
                       u8'\0'},
              2, U'\0'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xC1, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2484,7 +2560,7 @@ std::vector<std::tuple<
                       u8'\0',
                       u8'\0'},
              2, U'\x7F'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2494,7 +2570,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       u8'\0'},
              3, U'\0'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x81, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2504,7 +2580,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       u8'\0'},
              3, U'\x7F'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xE0, 0x9F, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2514,7 +2590,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       u8'\0'},
              3, U'\x7FF'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2524,7 +2600,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0x80)},
              4, U'\0'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF0, 0x80, 0x80, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2534,7 +2610,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0xBF)},
              4, U'\x3F'
-                 )
+                 ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2545,7 +2621,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xD800'
-                     )
+                     ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xED, 0xAF, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2556,7 +2632,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           u8'\0'},
              3, U'\xDBFF'
-                     )
+                     ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xED, 0xB0, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2567,7 +2643,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xDC00'
-                     )
+                     ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xED, 0xBF, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2578,7 +2654,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           u8'\0'},
              3, U'\xDFFF'
-                     )
+                     ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF4, 0x90, 0x80, 0x80}, u8"hello"),
              unicode_conversion_error(
@@ -2589,7 +2665,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           static_cast<char8_t>(0x80)},
              4, U'\x110000'
-                     )
+                     ), 0
              ), u8""},
             {mk_unicode<char8_t>({0xF7, 0xBF, 0xBF, 0xBF}, u8"hello"),
              unicode_conversion_error(
@@ -2600,7 +2676,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0xBF),
                           static_cast<char8_t>(0xBF)},
              4, U'\x1FFFFF'
-                     )
+                     ), 0
              ), u8""},
             {u8string(u8"abc")
                  + mk_unicode<char8_t>({0xED, 0xA0, 0x80}, u8"def"),
@@ -2612,134 +2688,165 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           u8'\0'},
              3, U'\xD800'
-                     )
+                     ), 3
              ), u8"abc"},
     };
     initializer_list<tuple<u16string, unicode_conversion_error, u16string>> invalid_u16_errors = {
         {mk_unicode<char16_t>({0xD800}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xD800', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xD800', same_as<CharT, wchar_t>),
+         0
          ), u""},
         {mk_unicode<char16_t>({0xDBFF}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>),
+         0
          ), u""},
         {u16string(u"hello") + mk_unicode<char16_t>({0xDBFF}, u""),
          unicode_conversion_error(
              5, forward_scan_unicode_error_factory::
-                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>)
+                 high_surrogate_then_end_of_stream(u'\xDBFF', same_as<CharT, wchar_t>),
+         5
          ), u"hello"},
         {mk_unicode<char16_t>({0xDBFF}, u"hello"),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'h', same_as<CharT, wchar_t>)
-         ), u"" },
+                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'h', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0xD800, 0xD801}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\xD801', same_as<CharT, wchar_t>)
-         ), u"" },
+                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\xD801', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0xDBFF, 0x4E00}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'\x4E00', same_as<CharT, wchar_t>)
-         ), u"" },
+                 high_surrogate_not_followed_by_low_surrogate(u'\xDBFF', u'\x4E00', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0x0041, 0xD800, 0x0042, 0x0043}, u""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
-                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\x0042', same_as<CharT, wchar_t>)
-), u"A" },
+                 high_surrogate_not_followed_by_low_surrogate(u'\xD800', u'\x0042', same_as<CharT, wchar_t>),
+         1
+         ), u"A"},
         {mk_unicode<char16_t>({0xDC00}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         ), u"" },
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0xDFFF}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDFFF', same_as<CharT, wchar_t>)
-         ), u"" },
+                 unexpected_low_surrogate(u'\xDFFF', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0x0041, 0x0042, 0xDC00}, u""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         ), u"AB" },
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         2
+         ), u"AB"},
         {mk_unicode<char16_t>({0xDC00, 0x0041, 0x0042}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         ), u"" },
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
+         ), u""},
         {mk_unicode<char16_t>({0xDC00, 0xDC01}, u""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>)
-         ), u"" },
+                 unexpected_low_surrogate(u'\xDC00', same_as<CharT, wchar_t>),
+         0
+         ), u""},
     };
-    initializer_list<tuple<u32string, unicode_conversion_error,u32string>> invalid_u32_errors = {
+    initializer_list<tuple<u32string, unicode_conversion_error, u32string>> invalid_u32_errors = {
         {mk_unicode<char32_t>({0xD800},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0xDBFF},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDBFF',     same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\xDBFF',     same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0xDC00},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDC00',     same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\xDC00',     same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0xDFFF},                    U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xDFFF',     same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\xDFFF',     same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0xD800},    U""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-         ), U"AB" },
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>),
+         2
+         ), U"AB"},
         {mk_unicode<char32_t>({0x0041, 0xD800, 0x0042},    U""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>)
-), U"A" },
+                 invalid_utf32_code_point(U'\xD800',     same_as<CharT, wchar_t>),
+         1
+         ), U"A" },
         {mk_unicode<char32_t>({0x11'0000},                 U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0x20'0000},                 U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x200000',   same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\x200000',   same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0xFFFF'FFFF},               U""),
          unicode_conversion_error(
              0, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\xFFFFFFFF', same_as<CharT, wchar_t>)
-         ), U"" },
+                 invalid_utf32_code_point(U'\xFFFFFFFF', same_as<CharT, wchar_t>),
+         0
+         ), U""  },
         {mk_unicode<char32_t>({0x0041, 0x0042, 0x11'0000}, U""),
          unicode_conversion_error(
              2, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
-         ), U"AB" },
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>),
+         2
+         ), U"AB"},
         {mk_unicode<char32_t>({0x0041, 0x11'0000, 0x0042}, U""),
          unicode_conversion_error(
              1, forward_scan_unicode_error_factory::
-                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>)
+                 invalid_utf32_code_point(U'\x110000',   same_as<CharT, wchar_t>),
+         1
          ), U"A" },
     };
-    vector<tuple<basic_string<CharT>, unicode_conversion_error, basic_string<CharT>>> rv;
+    vector<tuple<
+        basic_string<CharT>,
+        unicode_conversion_error,
+        basic_string<CharT>>>
+         rv;
     auto fill_vector_func = [&]<typename T>(T list_arg)
     {
         for (auto& [unicode_str, err, partial_str] : list_arg)
         {
-            rv.push_back(make_tuple(spl_convert<CharT>(unicode_str), err, spl_convert<CharT>(partial_str)));
+            rv.push_back(make_tuple(
+                spl_convert<CharT>(unicode_str),
+                err,
+                spl_convert<CharT>(partial_str)
+            ));
         }
     };
     if constexpr (same_as<char8_t, CharT>)
@@ -5658,7 +5765,7 @@ std::vector<std::tuple<
         u8_input_output_pairs = {
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_leading_byte('\xF8'
-                 )
+                 ), 0
              ), u8"The 11th code unit (0xF8) in the UTF-8 input "
              u8"passed to the function was found to be an invalid leading "
              u8"byte. A valid leading "
@@ -5677,7 +5784,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xC2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_2_found_1
-                 )
+                 ), 0
              ), u8"The 1st code unit (0xC2) in the UTF-8 input (\"A very lo...\") "
              u8"passed to "
              u8"the function was found to be a valid "
@@ -5695,7 +5802,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_1
-                 )
+                 ), 0
              ), u8"The 18th code unit (0xE2) in the UTF-8 input (\"... the "
              u8"start\") "
              u8"passed to "
@@ -5712,7 +5819,7 @@ std::vector<std::tuple<
                      {static_cast<char8_t>(0xE2), u8'\0', u8'\0', u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_1
-                 )
+                 ), 0
              ), u8"The 15th code unit (0xE2) in the UTF-8 input (\"...    in the "
              u8"middle...\") "
              u8"passed to "
@@ -5732,7 +5839,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_2
-                 )
+                 ), 0
              ), u8"The 9th and 10th code units ([0xE2, 0x80]) in the UTF-8 input "
              u8"(\"maximum size12345\") "
              u8"passed to the function form the start of a "
@@ -5750,7 +5857,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_2
-                 )
+                 ), 0
              ), u8"The 9th and 10th code units ([0xF0, 0x90]) in the UTF-8 input "
              u8"(\"maximum sizé12345\") "
              u8"passed to the function form the start of a "
@@ -5768,7 +5875,7 @@ std::vector<std::tuple<
                       u8'\0'},
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_3
-                 )
+                 ), 0
              ), u8"The 11th to 13th code units ([0xF0, 0x90, 0x80]) in the "
              u8"UTF-8 input (\"éééééééééééééé...\") passed to the function "
              u8"form the start of a four-byte sequence. However, the input "
@@ -5787,7 +5894,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
-                 )
+                 ), 0
              ), u8"The 21st and 22nd code units ([0xC2, 0x20]) in the UTF-8 input "
              u8"(\"...ééééééééééééééééé...\") "
              u8"passed to the function form the start of a "
@@ -5808,7 +5915,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_1
-                 )
+                 ), 0
              ), u8"The 11th to 13th code units ([0xE2, 0x20, 0x80]) in the "
              u8"UTF-8 input "
              u8"(\"... \\xE2\\x80 \\xE2\\x80 hello\") passed "
@@ -5832,7 +5939,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_2
-                 )
+                 ), 0
              ), u8"The 1st to 3rd code units ([0xE2, 0x80, 0x20]) in the "
              u8"UTF-8 input (\"hello\\xE2\\x80 \\xE2\\x80 ...\") passed to the "
              u8"function form "
@@ -5855,7 +5962,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_3_invalid_indexes_1_2
-                 )
+                 ), 0
              ), u8"The 11th to 13th code units ([0xE2, 0x20, 0x21]) in the "
              u8"UTF-8 input (\"...\\xC3 superb owls hello\") passed to the "
              u8"function form "
@@ -5879,7 +5986,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x80, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The second "
@@ -5900,7 +6007,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x90, 0x20, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The third "
@@ -5921,7 +6028,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_3
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x90, 0x80, "
              u8"0x20]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The fourth "
@@ -5941,7 +6048,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1_2
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x21, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The second "
@@ -5963,7 +6070,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_2_3
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x90, 0x20, "
              u8"0x21]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The third and "
@@ -5984,7 +6091,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1_3
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x80, "
              u8"0x21]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The second "
@@ -6006,7 +6113,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1_2_3
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x21, "
              u8"0x22]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The second, "
@@ -6027,7 +6134,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x00),
                       static_cast<char8_t>(0x00)},
              2, static_cast<char32_t>(0x0)
-                 )
+                 ), 0
              ), u8"The 11th and 12th code units ([0xC0, 0x80]) in the UTF-8 input "
              u8"(\"<string>\") "
              u8"passed to the function form a two-byte "
@@ -6049,7 +6156,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0x00)},
              3, static_cast<char32_t>(0x0)
-                 )
+                 ), 0
              ), u8"The 11th to 13th code units ([0xE0, 0x80, 0x80]) in the "
              u8"UTF-8 input (\"<string>\") passed to the function form a "
              u8"three-byte sequence encoding U+0000. This is an overlong "
@@ -6069,7 +6176,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       static_cast<char8_t>(0x00)},
              3, static_cast<char32_t>(0x7FF)
-                 )
+                 ), 0
              ), u8"The 11th to 13th code units ([0xE0, 0x9F, 0xBF]) in the "
              u8"UTF"
              u8"-8 input (\"<string>\") passed to the function form a "
@@ -6089,7 +6196,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0x80)},
              4, static_cast<char32_t>(0x0)
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0x80, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+0000. This "
@@ -6110,7 +6217,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x80),
                       static_cast<char8_t>(0xBF)},
              4, static_cast<char32_t>(0x3F)
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0x80, "
              u8"0xBF]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+003F. This "
@@ -6131,7 +6238,7 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       static_cast<char8_t>(0xBF)},
              4, static_cast<char32_t>(0x0FFF)
-                 )
+                 ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0xBF, "
              u8"0xBF]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+0FFF. "
@@ -6152,7 +6259,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           static_cast<char8_t>(0x00)},
              3, static_cast<char32_t>(0xD800)
-                     )
+                     ), 0
              ), u8"The 11th to 13th code units ([0xED, 0xA0, 0x80]) in the "
              u8"UTF-8 input (\"<string>\") passed to the function form a "
              u8"three-byte sequence encoding U+D800. However, U+D800 falls "
@@ -6172,7 +6279,7 @@ std::vector<std::tuple<
                           static_cast<char8_t>(0x80),
                           static_cast<char8_t>(0x80)},
              4, static_cast<char32_t>(0x11'0000)
-                     )
+                     ), 0
              ), u8"The 11th to 14th code units ([0xF4, 0x90, 0x80, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+110000. "
@@ -6190,7 +6297,7 @@ std::vector<std::tuple<
                  10, forward_scan_unicode_error_factory::
                      high_surrogate_then_end_of_stream(
                          static_cast<char16_t>(0xD800), false
-                     )
+                     ), 0
              ), u8"The 11th code unit (0xD800) in the UTF-16 input (\"hello\") "
              u8"passed to the function is a high surrogate, "
              u8"indicating the start of a surrogate pair. However, the input "
@@ -6205,7 +6312,7 @@ std::vector<std::tuple<
                  10, forward_scan_unicode_error_factory::
                      high_surrogate_then_end_of_stream(
                          static_cast<char16_t>(0xD800), true
-                     )
+                     ), 0
              ), u8"The 11th code unit (0xD800) in the UTF-16 input (encoded using "
              u8"wchar_t) passed to the function is a high surrogate, "
              u8"indicating the start of a surrogate pair. However, the input "
@@ -6222,7 +6329,7 @@ std::vector<std::tuple<
                          static_cast<char16_t>(0xDBFF),
              static_cast<char16_t>(0xD800),
              false
-                     )
+                     ), 0
              ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the UTF-16 "
              u8"input (\"\\uD800\") passed to the function form the "
              u8"start of a surrogate pair. The first code unit (0xDBFF) is a "
@@ -6241,7 +6348,7 @@ std::vector<std::tuple<
                          static_cast<char16_t>(0xDBFF),
              static_cast<char16_t>(0xD800),
              true
-                     )
+                     ), 0
              ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the UTF-16 "
              u8"input (\"<string>\", encoded using wchar_t) passed to "
              u8"the "
@@ -6259,7 +6366,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::unexpected_low_surrogate(
                      static_cast<char16_t>(0xDC00), false
-                 )
+                 ), 0
              ), u8"The 11th code unit (0xDC00) in the UTF-16 input (\"<"
              u8"string>\") passed to "
              u8"the function is a low surrogate. Low "
@@ -6273,7 +6380,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::unexpected_low_surrogate(
                      static_cast<char16_t>(0xDC00), true
-                 )
+                 ), 0
              ), u8"The 11th code unit (0xDC00) in the UTF-16 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function is a low "
@@ -6290,7 +6397,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0xD800),    false
-                 )
+                 ),    0
              ),    u8"The 11th code unit (0xD800) in the UTF-32 input (\"\\uD800\") "
              u8"passed to "
              u8"the function decodes to U+D800. However, "
@@ -6305,7 +6412,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0x11'0000), false
-                 )
+                 ), 0
              ), u8"The 11th code unit (0x110000) in the UTF-32 input (\"<"
              u8"string>\") passed to "
              u8"the function decodes to U+110000. However, "
@@ -6320,7 +6427,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0xD800),    true
-                 )
+                 ),    0
              ),    u8"The 11th code unit (0xD800) in the UTF-32 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function decodes to "
@@ -6336,7 +6443,7 @@ std::vector<std::tuple<
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0x11'0000), true
-                 )
+                 ), 0
              ), u8"The 11th code unit (0x110000) in the UTF-32 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function decodes to "
@@ -6486,7 +6593,7 @@ std::vector<std::tuple<
              forward_scan_unicode_error::
                          invalid_continuation_byte_sub_error::
                              size_4_invalid_indexes_1_2_3
-                 )
+                 ), 0
              ), u8"The 16th to 19th code units ([0xF0, 0x20, 0x21, "
              u8"0x22]) in the UTF-8 input (\"...Welcome to the large...\") "
              u8"passed to the "
@@ -6509,7 +6616,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x9D),
                       static_cast<char8_t>(0x84),
                       static_cast<char8_t>(0x9E)},
-             16, 4
+             16, 4,
+             0
                  ), u8"The 17th to 20th code units ([0xF0, 0x9D, 0x84, "
              u8"0x9E]) "
              u8"in the UTF-8 input (\"...Welcome to the large...\") passed "
@@ -6532,7 +6640,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x82),
                       static_cast<char8_t>(0xAC),
                       static_cast<char8_t>(0x00)},
-             16, 3
+             16, 3,
+             0
                  ), u8"The 17th to 19th code units ([0xE2, 0x82, 0xAC]) "
              u8"in the UTF-8 input (\"...Welcome to the larg...\") passed "
              u8"to "
@@ -6554,7 +6663,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xA9),
                       static_cast<char8_t>(0x00),
                       static_cast<char8_t>(0x00)},
-             16, 2
+             16, 2,
+             0
                  ), u8"The 17th and 18th code units ([0xC3, 0xA9]) "
              u8"in the UTF-8 input (\"...Welcome to the lar...\") passed "
              u8"to "
@@ -6577,7 +6687,8 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0xBF),
                       static_cast<char8_t>(0xBD),
                       static_cast<char8_t>(0x00)},
-             16, 3
+             16, 3,
+             0
                  ), u8"The 17th to 19th code units ([0xEF, 0xBF, 0xBD]) "
              u8"in the UTF-8 input (\"...Welcome to the larg...\") passed "
              u8"to "
@@ -6600,8 +6711,9 @@ std::vector<std::tuple<
                  non_ascii_character_found_from_utf16(
                      U'é',                          {static_cast<char16_t>(0x00E9), static_cast<char16_t>(0x0)
                      },                                16,
-             1,                                                                                      false
-                 ), u8"The 17th code unit (0x00E9) "
+             1,                                                                                      false,
+             0
+                 ),                   u8"The 17th code unit (0x00E9) "
              u8"in the UTF-16 input (\"...Welcome to the la...\") passed "
              u8"to "
              u8"the "
@@ -6615,14 +6727,15 @@ std::vector<std::tuple<
              u8"U+00E9 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.", u"        Welcome to the largest    "},
+             u8"and the function was terminated.",                   u"        Welcome to the largest    "},
             {unicode_to_ascii_error_factory::
                  non_ascii_character_found_from_utf16(
                      static_cast<char32_t>(0x00A0),
              {static_cast<char16_t>(0x00A0), static_cast<char16_t>(0x0)
                      },                                                                       16,
-             1,                                                                                      false
-                 ), u8"The 17th code unit (0x00A0) "
+             1,                                                                                      false,
+             0
+                 ),                   u8"The 17th code unit (0x00A0) "
              u8"in the UTF-16 input (\"...Welcome to the la...\") passed "
              u8"to "
              u8"the "
@@ -6636,14 +6749,14 @@ std::vector<std::tuple<
              u8"U+00A0 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.", u"        Welcome to the largest    "},
+             u8"and the function was terminated.",                   u"        Welcome to the largest    "},
             {unicode_to_ascii_error_factory::
                  non_ascii_character_found_from_utf16(
                      U'😂',                         {static_cast<char16_t>(0xD83D),
                       static_cast<char16_t>(0xDE02)},
              16,                                                                                  2,
-             true
-                 ),                u8"The 17th and 18th code units ([0xD83D, 0xDE02]) "
+             true,                                                                                          0
+                 ), u8"The 17th and 18th code units ([0xD83D, 0xDE02]) "
              u8"in the UTF-16 input (encoded using wchar_t) passed to "
              u8"the "
              u8"function encode the Unicode scalar "
@@ -6656,14 +6769,14 @@ std::vector<std::tuple<
              u8"U+1F602 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.",                std::nullopt                         },
+             u8"and the function was terminated.", std::nullopt                         },
             {unicode_to_ascii_error_factory::
                  non_ascii_character_found_from_utf16(
                      U'😂',                         {static_cast<char16_t>(0xD83D),
                       static_cast<char16_t>(0xDE02)},
              16,                                                                                  2,
-             true
-                 ),                u8"The 17th and 18th code units ([0xD83D, 0xDE02]) "
+             true,                                                                                          0
+                 ), u8"The 17th and 18th code units ([0xD83D, 0xDE02]) "
              u8"in the UTF-16 input (\"... to the largest   ...\", encoded "
              u8"using wchar_t) passed to "
              u8"the "
@@ -6677,12 +6790,12 @@ std::vector<std::tuple<
              u8"U+1F602 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.",                u" Welcome to the largest    "       },
+             u8"and the function was terminated.", u" Welcome to the largest    "       },
     };
     vector<tuple<unicode_to_ascii_error, u8string, optional<u32string>>>
         u32_input_output_pairs = {
             {unicode_to_ascii_error_factory::
-                 non_ascii_character_found_from_utf32(U'é',  16, false),
+                 non_ascii_character_found_from_utf32(U'é',  16, false, 0),
              u8"The 17th code unit (0x000000E9) "
              u8"in the UTF-32 input (\"...Welcome to the la...\") passed "
              u8"to "
@@ -6697,10 +6810,10 @@ std::vector<std::tuple<
              u8"U+00E9 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.",                                                                                                 U"        Welcome to the largest    "},
+             u8"and the function was terminated.",                                                                                                        U"        Welcome to the largest    "},
             {unicode_to_ascii_error_factory::
                  non_ascii_character_found_from_utf32(
-                     static_cast<char32_t>(0x00A0),          16, false
+                     static_cast<char32_t>(0x00A0),          16, false, 0
                  ), u8"The 17th code unit (0x000000A0) "
              u8"in the UTF-32 input (\"...Welcome to the la...\") "
              u8"passed to "
@@ -6717,7 +6830,7 @@ std::vector<std::tuple<
              u8"ASCII, "
              u8"and the function was terminated.", U"        Welcome to the largest    "},
             {unicode_to_ascii_error_factory::
-                 non_ascii_character_found_from_utf32(U'😂', 16, true),
+                 non_ascii_character_found_from_utf32(U'😂', 16, true,  0),
              u8"The 17th code unit (0x0001F602) "
              u8"in the UTF-32 input (encoded using wchar_t) passed to "
              u8"the "
@@ -6731,9 +6844,9 @@ std::vector<std::tuple<
              u8"U+1F602 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.",                                                                                                 std::nullopt                         },
+             u8"and the function was terminated.",                                                                                                        std::nullopt                         },
             {unicode_to_ascii_error_factory::
-                 non_ascii_character_found_from_utf32(U'😂', 16, true),
+                 non_ascii_character_found_from_utf32(U'😂', 16, true,  0),
              u8"The 17th code unit (0x0001F602) "
              u8"in the UTF-32 input (\"...Welcome to the la...\", encoded "
              u8"using wchar_t) passed to "
@@ -6748,7 +6861,7 @@ std::vector<std::tuple<
              u8"U+1F602 falls outside this range, it cannot be represented "
              u8"as "
              u8"ASCII, "
-             u8"and the function was terminated.",                                                                                                 U"        Welcome to the largest    "},
+             u8"and the function was terminated.",                                                                                                        U"        Welcome to the largest    "},
     };
     vector<
         tuple<unicode_to_ascii_error, u8string, optional<basic_string<CharT>>>>
