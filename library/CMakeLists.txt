@@ -3,6 +3,7 @@ if(NOT DEFINED UNICODE_BRIDGE_LIBRARY_INCLUDED)
   set(UNICODE_BRIDGE_LIBRARY_INCLUDED TRUE)
   # Set library name so that, if we change it, we only have to change this line
   set(UNICODE_BRIDGE_LIBRARY_NAME unicode_bridge)
+  set(UNICODE_BRIDGE_NESTED_LIBRARY_NAME unicode_bridge::unicode_bridge)
 
   # Set the header files variable. This is a list of all the header files.
   set(UNICODE_BRIDGE_INTERNAL_HEADERS
@@ -33,6 +34,7 @@ if(NOT DEFINED UNICODE_BRIDGE_LIBRARY_INCLUDED)
 
   # Adds the library itself.
   add_library(${UNICODE_BRIDGE_LIBRARY_NAME})
+  add_library(${UNICODE_BRIDGE_NESTED_LIBRARY_NAME} ALIAS ${UNICODE_BRIDGE_LIBRARY_NAME})
 
   # Sets the sources of the library.
   target_sources(${UNICODE_BRIDGE_LIBRARY_NAME}
