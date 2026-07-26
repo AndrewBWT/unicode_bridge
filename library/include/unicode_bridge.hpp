@@ -1384,6 +1384,12 @@ struct string_sink
     {
         _str.append(char_star_arg, n_chars_to_append_arg);
     }
+    void write(
+        const std::basic_string_view<CharT> str_arg
+    )
+    {
+        write(str_arg.data(), str_arg.size());
+    }
 };
 
 template <typename CharT>
@@ -1406,6 +1412,12 @@ struct ostream_sink
         ) noexcept
     {
         _stream.write(char_star_arg, n_chars_to_append_arg);
+    }
+    void write(
+        const std::basic_string_view<CharT> str_arg
+    )
+    {
+        write(str_arg.data(), str_arg.size());
     }
 };
 template <typename CharT>
