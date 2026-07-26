@@ -1363,13 +1363,14 @@ public:
         error() const noexcept;
 };
 
+template <typename CharT>
 struct string_sink
 {
-    std::string& _str;
+    std::basic_string<CharT>& _str;
 
     void
         put(
-            char char_arg
+            CharT char_arg
         ) noexcept
     {
         _str.push_back(char_arg);
@@ -1377,21 +1378,22 @@ struct string_sink
 
     void
         write(
-            const char* char_star_arg,
-            std::size_t n_chars_to_append_arg
+            const CharT* char_star_arg,
+            std::size_t  n_chars_to_append_arg
         ) noexcept
     {
         _str.append(char_star_arg, n_chars_to_append_arg);
     }
 };
 
+template <typename CharT>
 struct ostream_sink
 {
-    std::ostream& _stream;
+    std::basic_ostream<CharT, std::char_traits<CharT>>& _stream;
 
     void
         put(
-            char char_arg
+            CharT char_arg
         ) noexcept
     {
         _stream.put(char_arg);
@@ -1399,8 +1401,8 @@ struct ostream_sink
 
     void
         write(
-            const char* char_star_arg,
-            std::size_t n_chars_to_append_arg
+            const CharT* char_star_arg,
+            std::size_t  n_chars_to_append_arg
         ) noexcept
     {
         _stream.write(char_star_arg, n_chars_to_append_arg);
@@ -1455,7 +1457,7 @@ struct unicode_print
 private:
     std::basic_string_view<CharT> _str;
     template <typename Sink>
-    requires (std::same_as<Sink, ostream_sink> || std::same_as<Sink, string_sink>)
+        requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>>)
     constexpr void
         stream_impl(Sink& sink_arg) const;
 public:
@@ -1463,8 +1465,10 @@ public:
     ) noexcept;
     constexpr std::string
         str() const;
-    friend std::ostream&
-        operator<< <CharT>(std::ostream& os, const unicode_print& w);
+    friend std::ostream& operator<< <CharT>(
+        std::ostream&        ostream_arg,
+        const unicode_print& u_print_arg
+    );
 };
 
 unicode_print(std::u8string_view) -> unicode_print<char8_t>;
@@ -4479,7 +4483,7 @@ constexpr const Error_Type&
 template <typename CharT>
 requires char_type_is_unicode_c<CharT>
 template <typename Sink>
-requires (std::same_as<Sink, ostream_sink> || std::same_as<Sink, string_sink>)
+requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>>)
 constexpr void
     unicode_print<CharT>::stream_impl(
         Sink& sinkg_arg
@@ -4609,13 +4613,13 @@ template <typename CharT>
 requires char_type_is_unicode_c<CharT>
 inline std::ostream&
     operator<<(
-        std::ostream&               os,
-        const unicode_print<CharT>& w
+        std::ostream&               ostream_arg,
+        const unicode_print<CharT>& u_print_arg
     )
 {
-    ostream_sink sink{os};
-    w.stream_impl(sink);
-    return os;
+    ostream_sink<char> sink{ostream_arg};
+    u_print_arg.stream_impl(sink);
+    return ostream_arg;
 }
 
 template <typename Arg_Type, typename String_Type>
