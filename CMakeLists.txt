@@ -16,6 +16,9 @@ endfunction()
 # Current CMake version. We have not tested with other versions.
 cmake_minimum_required(VERSION 3.28)
 
+# Use FetchContent to get libraries etc.
+include(FetchContent)
+
 # Set up the project information
 project(
   unicode_bridge
@@ -55,29 +58,6 @@ option(UNICODE_BRIDGE_ENABLE_DOCS "Build Unicode bridge documentation" ${UNICODE
 option(UNICODE_BRIDGE_ENABLE_TESTS "Build Unicode bridge tests" ${UNICODE_BRIDGE_RUNNING_TESTS})
 option(UNICODE_BRIDGE_ENABLE_EXAMPLES "Build Unicode bridge examples" ${UNICODE_BRIDGE_TOP_LEVEL_PROJECT})
 
-# Fetch the fmt library if its the top level project
-# Only use FetchContent if fmt::fmt is not already provided
-if(NOT TARGET fmt::fmt)
-  include(FetchContent)
-
-  if(UNICODE_BRIDGE_TOP_LEVEL_PROJECT)
-    FetchContent_Declare(
-      fmt
-      GIT_REPOSITORY https://github.com/fmtlib/fmt.git
-      GIT_TAG 11.2.0
-    )
-    FetchContent_MakeAvailable(fmt)
-  else()
-    FetchContent_GetProperties(fmt)
-    if(NOT fmt_POPULATED)
-      message(FATAL_ERROR "Required target fmt::fmt not found.
-Please make sure:
-  - fmt::fmt is available (e.g., via find_package(fmt CONFIG REQUIRED)),
-  - or build Unicode bridge as a top-level project.")
-    endif()
-  endif()
-endif()
-
 # Show the user the status of the core variables.
 message(STATUS "Top level project: ${UNICODE_BRIDGE_TOP_LEVEL_PROJECT}")
 message(STATUS "Building tests: ${UNICODE_BRIDGE_ENABLE_TESTS}")
@@ -98,7 +78,6 @@ add_subdirectory(library)
 #endif()
 
 # Enable tests if required
-message(UNICODE_BRIDGE_ENABLE_TESTS = ${UNICODE_BRIDGE_ENABLE_TESTS})
 if(UNICODE_BRIDGE_ENABLE_TESTS)
   add_subdirectory(tests)
 endif()
