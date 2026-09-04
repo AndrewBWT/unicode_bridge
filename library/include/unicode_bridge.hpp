@@ -22,8 +22,12 @@
 #define UNICODE_BRIDGE_INTERNAL_NS_END }
 
 // Macro for static assert.
-#define UNICODE_BRIDGE_STATIC_ASSERT(type_arg, msg_arg) \
-    static_assert(dependent_false<type_arg>, msg_arg);
+#define UNICODE_BRIDGE_STATIC_ASSERT(type_arg, msg_arg)                 \
+    static_assert(                                                      \
+        ::UNICODE_BRIDGE_NAMESPACE::UNICODE_BRIDGE_NAMESPACE_INTERNAL:: \
+            dependent_false<type_arg>,                                  \
+        msg_arg                                                         \
+    );
 
 // Core namespace.
 UNICODE_BRIDGE_NS_BEGIN
@@ -1384,9 +1388,11 @@ struct string_sink
     {
         _str.append(char_star_arg, n_chars_to_append_arg);
     }
-    void write(
-        const std::basic_string_view<CharT> str_arg
-    )
+
+    void
+        write(
+            const std::basic_string_view<CharT> str_arg
+        )
     {
         write(str_arg.data(), str_arg.size());
     }
@@ -1413,9 +1419,11 @@ struct ostream_sink
     {
         _stream.write(char_star_arg, n_chars_to_append_arg);
     }
-    void write(
-        const std::basic_string_view<CharT> str_arg
-    )
+
+    void
+        write(
+            const std::basic_string_view<CharT> str_arg
+        )
     {
         write(str_arg.data(), str_arg.size());
     }
@@ -1469,7 +1477,7 @@ struct unicode_print
 private:
     std::basic_string_view<CharT> _str;
     template <typename Sink>
-        requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>>)
+    requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>>)
     constexpr void
         stream_impl(Sink& sink_arg) const;
 public:

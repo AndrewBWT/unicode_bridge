@@ -59,10 +59,10 @@ option(UNICODE_BRIDGE_ENABLE_TESTS "Build Unicode bridge tests" ${UNICODE_BRIDGE
 option(UNICODE_BRIDGE_ENABLE_EXAMPLES "Build Unicode bridge examples" ${UNICODE_BRIDGE_TOP_LEVEL_PROJECT})
 
 # Show the user the status of the core variables.
-message(STATUS "Top level project: ${UNICODE_BRIDGE_TOP_LEVEL_PROJECT}")
-message(STATUS "Building tests: ${UNICODE_BRIDGE_ENABLE_TESTS}")
-message(STATUS "Building docs: ${UNICODE_BRIDGE_ENABLE_DOCS}")
-message(STATUS "Building examples: ${UNICODE_BRIDGE_ENABLE_EXAMPLES}")
+message(STATUS "unicode_bridge - Top level project: ${UNICODE_BRIDGE_TOP_LEVEL_PROJECT}")
+message(STATUS "unicode_bridge - Building tests: ${UNICODE_BRIDGE_ENABLE_TESTS}")
+message(STATUS "unicode_bridge - Building docs: ${UNICODE_BRIDGE_ENABLE_DOCS}")
+message(STATUS "unicode_bridge - Building examples: ${UNICODE_BRIDGE_ENABLE_EXAMPLES}")
   
 # Add the library folder.
 add_subdirectory(library)
