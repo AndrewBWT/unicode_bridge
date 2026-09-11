@@ -2613,6 +2613,95 @@ requires is_char_type_c<char_type_of_t<ArgType>>
          && is_char_type_c<OutputChar>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(ArgType str_arg) noexcept;
+
+template <typename CharT>
+requires is_char_type_c<CharT>
+constexpr bool
+    is_whitespace(
+        const CharT char_arg
+    ) noexcept
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+
+    auto is_ascii_whitespace
+        = [](const char char_arg) constexpr noexcept -> bool
+    {
+        switch (char_arg)
+        {
+        case ' ':
+        case '\t':
+        case '\n':
+        case '\r':
+        case '\v':
+        case '\f':
+            return true;
+        default:
+            return false;
+        }
+    };
+
+    auto is_whitespace_char32
+        = [](const char32_t char_arg) constexpr noexcept -> bool
+    {
+        switch (char_arg)
+        {
+        case U' ':
+        case U'\t':
+        case U'\n':
+        case U'\r':
+        case U'\v':
+        case U'\f':
+        case U'\u00A0':
+        case U'\u1680':
+        case U'\u180E':
+        case U'\u2000':
+        case U'\u2001':
+        case U'\u2002':
+        case U'\u2003':
+        case U'\u2004':
+        case U'\u2005':
+        case U'\u2006':
+        case U'\u2007':
+        case U'\u2008':
+        case U'\u2009':
+        case U'\u200A':
+        case U'\u200B':
+        case U'\u2028':
+        case U'\u2029':
+        case U'\u202F':
+        case U'\u205F':
+        case U'\u3000':
+        case U'\uFEFF':
+            return true;
+        default:
+            return false;
+        }
+    };
+
+    if constexpr (std::same_as<CharT, char>)
+    {
+        return is_ascii_whitespace(char_arg);
+    }
+    else if constexpr (std::same_as<CharT, char32_t>
+                       || is_wchar_and_32_bit_c<CharT>)
+    {
+        return is_whitespace_char32(static_cast<char32_t>(char_arg));
+    }
+    else if constexpr (std::same_as<CharT, char16_t>
+                       || is_wchar_and_16_bit_c<CharT>)
+    {
+        return is_surrogate(char_arg)
+                   ? false
+                   : is_whitespace_char32(static_cast<char32_t>(char_arg));
+    }
+    else if constexpr (std::same_as<CharT, char8_t>)
+    {
+        return (char_arg > ascii_limit<CharT>())
+                   ? false
+                   : is_ascii_whitespace(static_cast<char>(char_arg));
+    }
+}
+
 /*!
  * @brief Creates a formatted Unicode string from a single arbitrary character.
  *
@@ -8563,6 +8652,7 @@ constexpr std::wstring
         );
     }
 }
+
 template <typename T>
 requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::is_valid_wstring_cast_char_c<
     typename T::value_type>
@@ -8574,5 +8664,6 @@ constexpr void
 {
     str_to_append_to_arg.append(str_arg_view.begin(), str_arg_view.end());
 }
+
 UNICODE_BRIDGE_INTERNAL_NS_END
 UNICODE_BRIDGE_NS_END
