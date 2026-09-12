@@ -1499,60 +1499,88 @@ public:
 
 template <typename CharT>
 requires is_char_type_c<CharT>
-struct string_sink
+struct abstract_sink_t
 {
-    std::basic_string<CharT>& _str;
     using value_type = CharT;
+    virtual void
+        put(CharT char_arg) noexcept
+        = 0;
+    virtual void
+        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
+            noexcept
+        = 0;
+
+    template <typename InputCharT>
+        requires char_convertible_to_c<InputCharT, CharT>
+    && (!std::same_as<InputCharT, CharT>)
+        void put(InputCharT char_arg) noexcept
+    {
+        put(static_cast<CharT>(char_arg));
+    }
+
+    template <typename InputCharT>
+        requires char_convertible_to_c<InputCharT, CharT>
+    && (!std::same_as<InputCharT, CharT>)
+        void write(const InputCharT* ptr, std::size_t n) noexcept
+    {
+        write(reinterpret_cast<const CharT*>(ptr), n);
+    }
+
     template <typename InputCharT = CharT>
     requires char_convertible_to_c<InputCharT, CharT>
-    void
-        put(InputCharT char_arg) noexcept;
-
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    void
+    inline void
         write(
-            const InputCharT* char_star_arg,
-            std::size_t       n_chars_to_append_arg
-        ) noexcept;
+            std::basic_string_view<InputCharT> str_arg
+        ) noexcept
+    {
+        write(str_arg.data(), str_arg.size());
+    }
 
-    template <typename InputCharT>
+    template <typename InputCharT = CharT>
     requires char_convertible_to_c<InputCharT, CharT>
-    void
-        write(const std::basic_string_view<InputCharT> str_arg) noexcept;
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    void
-        write(const InputCharT* str_arg) noexcept;
+    inline void
+        write(
+            const InputCharT* char_star_arg
+        ) noexcept
+    {
+        using namespace std;
+        write(basic_string_view<InputCharT>(char_star_arg));
+    }
+
+    virtual ~abstract_sink_t() = default;
 };
 
 template <typename CharT>
 requires is_char_type_c<CharT>
-struct ostream_sink
+struct string_sink : public abstract_sink_t<CharT>
+{
+    std::basic_string<CharT>& _str;
+    using abstract_sink_t<CharT>::write;
+    using abstract_sink_t<CharT>::put;
+    explicit string_sink(std::basic_string<CharT>& str_arg) noexcept;
+    void
+        put(CharT char_arg) noexcept;
+
+    void
+        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
+            noexcept;
+};
+
+template <typename CharT>
+requires is_char_type_c<CharT>
+struct ostream_sink : public abstract_sink_t<CharT>
 {
     std::basic_ostream<CharT, std::char_traits<CharT>>& _stream;
-    using value_type = CharT;
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
+    using abstract_sink_t<CharT>::write;
+    using abstract_sink_t<CharT>::put;
+    explicit ostream_sink(
+        std::basic_ostream<CharT, std::char_traits<CharT>>& stream_arg
+    ) noexcept;
     void
-        put(InputCharT char_arg) noexcept;
-
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
+        put(CharT char_arg) noexcept;
     void
-        write(
-            const InputCharT* char_star_arg,
-            std::size_t       n_chars_to_append_arg
-        ) noexcept;
-
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    void
-        write(const std::basic_string_view<InputCharT> str_arg) noexcept;
-    template <typename InputCharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    void
-        write(const InputCharT* str_arg) noexcept;
+        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
+            noexcept;
 };
 template <typename CharT>
 requires char_type_is_unicode_c<CharT>
@@ -1602,10 +1630,10 @@ struct unicode_print
 {
 private:
     std::basic_string_view<CharT> _str;
-    template <typename Sink>
-    requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>> || std::same_as<Sink, ostream_sink<wchar_t>> || std::same_as<Sink, string_sink<wchar_t>>)
+    template <typename SinkCharT>
+        requires is_char_type_c<SinkCharT>
     constexpr void
-        stream_impl(Sink& sink_arg) const;
+        stream_impl(abstract_sink_t<SinkCharT>& sink_arg) const;
 public:
     constexpr explicit unicode_print(const std::basic_string_view<CharT> str_arg
     ) noexcept;
@@ -4576,121 +4604,75 @@ constexpr const Error_Type&
 
 template <typename CharT>
 requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
+inline string_sink<CharT>::string_sink(
+    std::basic_string<CharT>& str_arg
+) noexcept
+    : _str(str_arg)
+{}
+
+template <typename CharT>
+requires is_char_type_c<CharT>
+inline void
     string_sink<CharT>::put(
-        InputCharT char_arg
+        CharT char_arg
     ) noexcept
 {
-    _str.push_back(static_cast<CharT>(char_arg));
+    _str.push_back(char_arg);
 }
 
 template <typename CharT>
 requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
+inline void
     string_sink<CharT>::write(
-        const InputCharT* char_star_arg,
-        std::size_t       n_chars_to_append_arg
+        const CharT* char_star_arg,
+        std::size_t  n_chars_to_append_arg
     ) noexcept
 {
-    _str.append(
-        reinterpret_cast<const CharT*>(char_star_arg), n_chars_to_append_arg
-    );
+    _str.append(char_star_arg, n_chars_to_append_arg);
 }
 
 template <typename CharT>
-requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
-    string_sink<CharT>::write(
-        const std::basic_string_view<InputCharT> str_arg
-    ) noexcept
+    requires is_char_type_c<CharT>
+inline ostream_sink<CharT>::ostream_sink(
+    std::basic_ostream<CharT, std::char_traits<CharT>>& stream_arg
+) noexcept
+    : _stream(stream_arg)
 {
-    write(str_arg.data(), str_arg.size());
 }
-
 template <typename CharT>
 requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
-    string_sink<CharT>::write(
-        const InputCharT* str_arg
-    ) noexcept
-{
-    using namespace std;
-    write(basic_string_view<InputCharT>(str_arg));
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
+inline void
     ostream_sink<CharT>::put(
-        InputCharT char_arg
+        CharT char_arg
     ) noexcept
 {
-    _stream.put(static_cast<CharT>(char_arg));
+    _stream.put(char_arg);
 }
 
 template <typename CharT>
 requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
+inline void
     ostream_sink<CharT>::write(
-        const InputCharT* char_star_arg,
-        std::size_t       n_chars_to_append_arg
+        const CharT* char_star_arg,
+        std::size_t  n_chars_to_append_arg
     ) noexcept
 {
     _stream.write(
-        reinterpret_cast<const CharT*>(char_star_arg),
-        static_cast<std::streamsize>(n_chars_to_append_arg)
+        char_star_arg, static_cast<std::streamsize>(n_chars_to_append_arg)
     );
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
-    ostream_sink<CharT>::write(
-        const std::basic_string_view<InputCharT> str_arg
-    ) noexcept
-{
-    write(str_arg.data(), str_arg.size());
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-template <typename InputCharT>
-requires char_convertible_to_c<InputCharT, CharT>
-void
-    ostream_sink<CharT>::write(
-        const InputCharT* str_arg
-    ) noexcept
-{
-    using namespace std;
-    write(basic_string_view<InputCharT>(str_arg));
 }
 
 template <typename CharT>
 requires char_type_is_unicode_c<CharT>
-template <typename Sink>
-requires (std::same_as<Sink, ostream_sink<char>> || std::same_as<Sink, string_sink<char>> || std::same_as<Sink, ostream_sink<wchar_t>> || std::same_as<Sink, string_sink<wchar_t>>)
+template <typename SinkCharT>
+    requires is_char_type_c<SinkCharT>
 constexpr void
     unicode_print<CharT>::stream_impl(
-        Sink& sink_arg
+        abstract_sink_t<SinkCharT>& sink_arg
     ) const
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using SinkCharT = typename std::remove_reference_t<Sink>::value_type;
     auto char32_to_char_stream = [&](const char32_t char_arg)
     {
         if (char_arg > 0x10'FFFF)
