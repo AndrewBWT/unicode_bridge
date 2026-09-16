@@ -1521,9 +1521,9 @@ struct abstract_sink_t
     template <typename InputCharT>
         requires char_convertible_to_c<InputCharT, CharT>
     && (!std::same_as<InputCharT, CharT>)
-        void write(const InputCharT* ptr, std::size_t n) noexcept
+        void write(const InputCharT* ptr_arg, std::size_t size_arg) noexcept
     {
-        write(reinterpret_cast<const CharT*>(ptr), n);
+        write(cast_char_ptr<CharT>(ptr_arg), size_arg);
     }
 
     template <typename InputCharT = CharT>
@@ -1631,7 +1631,7 @@ struct unicode_print
 private:
     std::basic_string_view<CharT> _str;
     template <typename SinkCharT>
-        requires is_char_type_c<SinkCharT>
+    requires is_char_type_c<SinkCharT>
     constexpr void
         stream_impl(abstract_sink_t<SinkCharT>& sink_arg) const;
 public:
@@ -2642,6 +2642,50 @@ requires is_char_type_c<char_type_of_t<ArgType>>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(ArgType str_arg) noexcept;
 
+/*!
+ * @brief Creates a formatted Unicode string from a single arbitrary character.
+ *
+ * It specifically has the following features:
+ * - The following ASCII characters are printed as follows:
+ * -- 0x00 -> \0
+ * -- 0x07 -> \a
+ * -- 0x0A -> \n
+ * -- 0x0B -> \v
+ * -- 0x0C -> \f
+ * -- 0x0D -> \r
+ * -- 0x22 -> \"
+ * -- 0x27 -> \'
+ * -- 0x5C -> \\
+ *
+ * Any character below 0x20, or above 0x7F and below 0x9F is printed as straight
+ hex.
+ *
+ * If the input characters are ASCII, then anything abouve 7F is printed as hex.
+ *
+ * If the input is Unicode, the following hex values are printed as hex. This is
+ * because in general output, it may be hard to discern the Unicode from other
+ * types of character.
+ * 0x00A0, 0x1680, 0x180E, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
+ 0x2006
+ * 0x2007, 0x2008, 0x2009, 0x200A, 0x200B, 0x200C, 0x200D, 0x2028, 0x2029,
+ 0x202F,
+ * 0x205F, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x2066, 0x2067, 0x2068,
+ 0x2069,
+ * 0x3000, 0xFEFF, 0xFFF9, 0xFFFA, 0xFFFB, 0xFFFD.
+ *
+ * All other characters are printed as-is.
+ *
+ * @tparam
+ * @tparam InputChar The character type of the input character. It can be any
+ character type.
+ * @param char_arg The character to convert.
+ * @return The character converted to Unicode.
+ */
+template <typename OutputChar, typename InputChar>
+requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
+constexpr std::basic_string<OutputChar>
+    to_formatted_unicode_string(const InputChar char_arg) noexcept;
+
 template <typename CharT>
 requires is_char_type_c<CharT>
 constexpr bool
@@ -2730,49 +2774,34 @@ constexpr bool
     }
 }
 
-/*!
- * @brief Creates a formatted Unicode string from a single arbitrary character.
- *
- * It specifically has the following features:
- * - The following ASCII characters are printed as follows:
- * -- 0x00 -> \0
- * -- 0x07 -> \a
- * -- 0x0A -> \n
- * -- 0x0B -> \v
- * -- 0x0C -> \f
- * -- 0x0D -> \r
- * -- 0x22 -> \"
- * -- 0x27 -> \'
- * -- 0x5C -> \\
- *
- * Any character below 0x20, or above 0x7F and below 0x9F is printed as straight
- hex.
- *
- * If the input characters are ASCII, then anything abouve 7F is printed as hex.
- *
- * If the input is Unicode, the following hex values are printed as hex. This is
- * because in general output, it may be hard to discern the Unicode from other
- * types of character.
- * 0x00A0, 0x1680, 0x180E, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
- 0x2006
- * 0x2007, 0x2008, 0x2009, 0x200A, 0x200B, 0x200C, 0x200D, 0x2028, 0x2029,
- 0x202F,
- * 0x205F, 0x2060, 0x2061, 0x2062, 0x2063, 0x2064, 0x2066, 0x2067, 0x2068,
- 0x2069,
- * 0x3000, 0xFEFF, 0xFFF9, 0xFFFA, 0xFFFB, 0xFFFD.
- *
- * All other characters are printed as-is.
- *
- * @tparam
- * @tparam InputChar The character type of the input character. It can be any
- character type.
- * @param char_arg The character to convert.
- * @return The character converted to Unicode.
- */
-template <typename OutputChar, typename InputChar>
-requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
-constexpr std::basic_string<OutputChar>
-    to_formatted_unicode_string(const InputChar char_arg) noexcept;
+template <typename To, typename FromChar>
+requires is_char_type_c<To> && is_char_type_c<FromChar>
+         && char_convertible_to_c<FromChar, To>
+constexpr const To*
+    cast_char_ptr(
+        const FromChar* ptr_arg
+    ) noexcept
+{
+    return reinterpret_cast<const To*>(ptr_arg);
+}
+
+template <typename To, typename StringLike>
+requires is_char_type_c<To> && is_char_type_c<char_type_of_t<StringLike>>
+         && char_convertible_to_c<char_type_of_t<StringLike>, To>
+         && std::convertible_to<
+             StringLike,
+             std::basic_string_view<char_type_of_t<StringLike>>>
+constexpr std::basic_string_view<To>
+    cast_string_view(
+        const StringLike& str
+    ) noexcept
+{
+    using namespace std;
+    using From = char_type_of_t<StringLike>;
+    auto sv    = basic_string_view<From>(str);
+    return basic_string_view<To>(cast_char_ptr<To>(sv.data()), sv.size());
+}
+
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 // ---- Internal namespace definitions
 // ---- Concepts and related definitions
@@ -3242,9 +3271,6 @@ template <typename T>
 requires std::unsigned_integral<T>
 constexpr std::u8string
     positive_integer_to_placement(const T number_arg) noexcept;
-template <typename WCharT = wchar_t>
-constexpr auto
-    cast_wstring_to_unicode_string(const std::wstring_view str_arg) noexcept;
 
 template <typename CharT>
 requires (std::same_as<CharT, char16_t>
@@ -4588,8 +4614,7 @@ const char*
     if (_what_cache.empty())
     {
         const u8string u8msg = _error.message();
-        _what_cache
-            = string(reinterpret_cast<const char*>(u8msg.data()), u8msg.size());
+        _what_cache          = cast_string_view<char>(u8msg);
     }
     return _what_cache.c_str();
 }
@@ -4632,13 +4657,13 @@ inline void
 }
 
 template <typename CharT>
-    requires is_char_type_c<CharT>
+requires is_char_type_c<CharT>
 inline ostream_sink<CharT>::ostream_sink(
     std::basic_ostream<CharT, std::char_traits<CharT>>& stream_arg
 ) noexcept
     : _stream(stream_arg)
-{
-}
+{}
+
 template <typename CharT>
 requires is_char_type_c<CharT>
 inline void
@@ -4665,7 +4690,7 @@ inline void
 template <typename CharT>
 requires char_type_is_unicode_c<CharT>
 template <typename SinkCharT>
-    requires is_char_type_c<SinkCharT>
+requires is_char_type_c<SinkCharT>
 constexpr void
     unicode_print<CharT>::stream_impl(
         abstract_sink_t<SinkCharT>& sink_arg
@@ -4766,8 +4791,7 @@ constexpr void
         }
         else
         {
-            auto u16_str = cast_wstring_to_unicode_string(_str);
-            stream_u16(u16_str);
+            stream_u16(cast_string_view<char16_t>(_str));
         }
     }
     else if constexpr (same_as<char32_t, CharT>)
@@ -4790,8 +4814,7 @@ constexpr void
         }
         else
         {
-            auto u32_str = cast_wstring_to_unicode_string(_str);
-            stream_u32(u32_str);
+            stream_u32(cast_string_view<char32_t>(_str));
         }
     }
     else if constexpr (same_as<char8_t, CharT>)
@@ -6362,7 +6385,14 @@ constexpr bool
     };
     if constexpr (same_as<InputChar, wchar_t>)
     {
-        return is_valid_unicode(cast_wstring_to_unicode_string(sv));
+        if constexpr (wchar_is_16_bit)
+        {
+            return is_valid_unicode(cast_string_view<char16_t>(sv));
+        }
+        else
+        {
+            return is_valid_unicode(cast_string_view<char32_t>(sv));
+        }
     }
     else if constexpr (same_as<InputChar, char32_t>)
     {
@@ -7306,43 +7336,10 @@ constexpr std::u8string
             }
         }
     };
-    auto to_u8string = [](const std::string_view str_arg)
-    {
-        return std::u8string(
-            reinterpret_cast<const char8_t*>(str_arg.data()), str_arg.size()
-        );
-    };
     u8string msg;
-    msg.append(to_u8string(std::to_string(number_arg)));
+    msg.append(cast_string_view<char8_t>(std::to_string(number_arg)));
     msg.append(suffix_function());
     return msg;
-}
-
-template <typename WCharT>
-constexpr auto
-    cast_wstring_to_unicode_string(
-        const std::wstring_view str_arg
-    ) noexcept
-{
-    using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    if constexpr (wchar_is_16_bit)
-    {
-        return u16string(str_arg.begin(), str_arg.end());
-    }
-    else if constexpr (wchar_is_32_bit)
-    {
-        return u32string(str_arg.begin(), str_arg.end());
-    }
-    else
-    {
-        UNICODE_BRIDGE_STATIC_ASSERT(
-            WCharT,
-            "cast_wstring_to_unicode_string not defined for wchar_t of "
-            "this "
-            "size"
-        );
-    }
 }
 
 template <typename T, bool Use_Capitals, bool Variable_Size_Prefix>
