@@ -2773,7 +2773,91 @@ constexpr bool
                    : is_ascii_whitespace(static_cast<char>(char_arg));
     }
 }
+template <typename T>
+constexpr std::tuple<bool, bool, std::basic_string_view<T>>
+make_focused_string(
+    const std::basic_string_view<T> string_view_arg,
+    const std::size_t               idx_to_focus_on_arg,
+    const std::size_t               size_of_idx_to_focus_on,
+    const std::size_t               maximum_left_offset_from_idx_arg = 8,
+    const std::size_t maximum_right_offset_from_idx_arg = 8
+) noexcept
+{
+    using namespace std;
+    if (string_view_arg.empty())
+    {
+        return { false, false, string_view_arg };
+    }
+    bool         cutoff_left = true;
+    bool         cutoff_right = true;
+    const size_t normalised_focused_idx
+        = std::min(idx_to_focus_on_arg, string_view_arg.size() - 1);
+    const size_t normalised_focused_idx_end = std::min(
+        normalised_focused_idx + size_of_idx_to_focus_on,
+        string_view_arg.size() - 1
+    );
+    size_t start_char = normalised_focused_idx;
+    size_t chars_counted = 0;
+    while (chars_counted < maximum_left_offset_from_idx_arg && start_char > 0)
+    {
+        if constexpr (char_type_is_unicode_c<T>)
+        {
+            auto res = prev_char32_no_error(
+                string_view_arg.begin() + start_char, string_view_arg.begin()
+            );
+            chars_counted++;
+            start_char -= (res.has_value() ? res.value().second : 1);
+        }
+        else
+        {
+            optional<char> res;
+            res = (start_char == 0)
+                ? std::nullopt
+                : make_optional(
+                    *(string_view_arg.begin() + start_char - 1)
+                );
+            chars_counted++;
+            start_char -= (res.has_value() ? 1 : 0);
+        }
+    }
+    if (start_char == 0)
+    {
+        cutoff_left = false;
+    }
+    size_t end_char = normalised_focused_idx_end;
+    chars_counted = 0;
+    while (chars_counted < maximum_right_offset_from_idx_arg
+        && end_char < string_view_arg.size())
+    {
+        if constexpr (char_type_is_unicode_c<T>)
+        {
+            auto res = next_char32_no_error(
+                string_view_arg.begin() + end_char, string_view_arg.end()
+            );
+            chars_counted++;
+            end_char += (res.has_value() ? res.value().second : 1);
+        }
+        else
+        {
+            optional<char> res;
+            res = (end_char >= string_view_arg.size())
+                ? std::nullopt
+                : make_optional(*(string_view_arg.begin() + end_char));
+            chars_counted++;
+            end_char += (res.has_value() ? 1 : 0);
+        }
+    }
+    if (end_char == string_view_arg.size())
+    {
+        cutoff_right = false;
+    }
 
+    return {
+        cutoff_left,
+        cutoff_right,
+        string_view_arg.substr(start_char, end_char - start_char)
+    };
+}
 template <typename To, typename FromChar>
 requires is_char_type_c<To> && is_char_type_c<FromChar>
          && char_convertible_to_c<FromChar, To>
@@ -3675,91 +3759,6 @@ constexpr void
         const T       str_arg_view,
         std::wstring& str_to_append_to_arg
     ) noexcept;
-
-template <typename T>
-constexpr std::tuple<bool, bool, std::basic_string_view<T>>
-    make_focused_string(
-        const std::basic_string_view<T> string_view_arg,
-        const std::size_t               idx_to_focus_on_arg,
-        const std::size_t               size_of_idx_to_focus_on,
-        const std::size_t               maximum_offset_from_idx_arg = 8
-    ) noexcept
-{
-    using namespace std;
-    if (string_view_arg.empty())
-    {
-        return {false, false, string_view_arg};
-    }
-    bool         cutoff_left  = true;
-    bool         cutoff_right = true;
-    const size_t normalised_focused_idx
-        = std::min(idx_to_focus_on_arg, string_view_arg.size() - 1);
-    const size_t normalised_focused_idx_end = std::min(
-        normalised_focused_idx + size_of_idx_to_focus_on,
-        string_view_arg.size() - 1
-    );
-    size_t start_char    = normalised_focused_idx;
-    size_t chars_counted = 0;
-    while (chars_counted < maximum_offset_from_idx_arg && start_char > 0)
-    {
-        if constexpr (char_type_is_unicode_c<T>)
-        {
-            auto res = prev_char32_no_error(
-                string_view_arg.begin() + start_char, string_view_arg.begin()
-            );
-            chars_counted++;
-            start_char -= (res.has_value() ? res.value().second : 1);
-        }
-        else
-        {
-            optional<char> res;
-            res = (start_char == 0)
-                      ? std::nullopt
-                      : make_optional(
-                            *(string_view_arg.begin() + start_char - 1)
-                        );
-            chars_counted++;
-            start_char -= (res.has_value() ? 1 : 0);
-        }
-    }
-    if (start_char == 0)
-    {
-        cutoff_left = false;
-    }
-    size_t end_char = normalised_focused_idx_end;
-    chars_counted   = 0;
-    while (chars_counted < maximum_offset_from_idx_arg
-           && end_char < string_view_arg.size())
-    {
-        if constexpr (char_type_is_unicode_c<T>)
-        {
-            auto res = next_char32_no_error(
-                string_view_arg.begin() + end_char, string_view_arg.end()
-            );
-            chars_counted++;
-            end_char += (res.has_value() ? res.value().second : 1);
-        }
-        else
-        {
-            optional<char> res;
-            res = (end_char >= string_view_arg.size())
-                      ? std::nullopt
-                      : make_optional(*(string_view_arg.begin() + end_char));
-            chars_counted++;
-            end_char += (res.has_value() ? 1 : 0);
-        }
-    }
-    if (end_char == string_view_arg.size())
-    {
-        cutoff_right = false;
-    }
-
-    return {
-        cutoff_left,
-        cutoff_right,
-        string_view_arg.substr(start_char, end_char - start_char)
-    };
-}
 
 template <typename T>
 constexpr char32_t
