@@ -5117,11 +5117,11 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
 
         // 0x7F-0x9F range
         {u8"\u007F",                                                         u8"\\x7F"           },
-        {u8"\u0080",                                                         u8"\\x80"           }, // U+0080
-        {u8"\u009F",                                                         u8"\\x9F"           }, // U+009F
+        {u8"\u0080",                                                         u8"\\u0080"           }, // U+0080
+        {u8"\u009F",                                                         u8"\\u009F"           }, // U+009F
 
         // special unicode characters
-        {u8"\u00A0",                                                         u8"\\xA0"           }, // non-breaking space
+        {u8"\u00A0",                                                         u8"\\u00A0"           }, // non-breaking space
         {u8"\u1680",                                                         u8"\\u1680"         }, // ogham space mark
         {u8"\u2006",                                                         u8"\\u2006"         }, // six-per-em space
         {u8"\u200B",                                                         u8"\\u200B"         }, // zero width space
@@ -5132,12 +5132,12 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8"\uFFFD",                                                         u8"\\uFFFD"         }, // replacement character
 
         // embedded in normal strings
-        {u8"a\u00A0b",                                                       u8"a\\xA0b"         }, // non-breaking space
+        {u8"a\u00A0b",                                                       u8"a\\u00A0b"         }, // non-breaking space
         {u8"a\u2006b",                                                       u8"a\\u2006b"       }, // six-per-em space
         {u8"£\uFEFF→",                                                       u8"£\\uFEFF→"       },
 
         // multiple special characters
-        {u8"\u00A0\u00A0",                                                   u8"\\xA0\\xA0"      },
+        {u8"\u00A0\u00A0",                                                   u8"\\u00A0\\u00A0"      },
         {u8"\u2006\u200B",                                                   u8"\\u2006\\u200B"  },
         // single invalid leading bytes
         {mk_unicode<char8_t>({0xFF}),                                        u8"\\xFF"           },
@@ -5183,7 +5183,7 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8"£\n→",                                                           u8"£\\n→"           },
 
         // normal + hex codepoint
-        {u8"a" + mk_unicode<char8_t>({0xC2, 0xA0}) + u8"b",                  u8"a\\xA0b"         },
+        {u8"a" + mk_unicode<char8_t>({0xC2, 0xA0}) + u8"b",                  u8"a\\u00A0b"         },
         {u8"→" + mk_unicode<char8_t>({0xEF, 0xBB, 0xBF}) + u8"£",            u8"→\\uFEFF£"
         },
 
@@ -5192,25 +5192,25 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8string(u8"£→") + mk_unicode<char8_t>({0xC2}),                     u8"£→\\xC2"         },
 
         // escape + hex codepoint
-        {u8"\t\u00A0",                                                       u8"\\t\\xA0"        },
-        {u8"\u00A0\n",                                                       u8"\\xA0\\n"        },
+        {u8"\t\u00A0",                                                       u8"\\t\\u00A0"        },
+        {u8"\u00A0\n",                                                       u8"\\u00A0\\n"        },
 
         // escape + malformed
         {u8string(u8"\t") + mk_unicode<char8_t>({0xFF}),                     u8"\\t\\xFF"        },
         {mk_unicode<char8_t>({0xFF}) + u8string(u8"\n"),                     u8"\\xFF\\n"        },
 
         // hex codepoint + malformed
-        {u8string(u8"\u00A0") + mk_unicode<char8_t>({0xFF}),                 u8"\\xA0\\xFF"      },
-        {mk_unicode<char8_t>({0xFF, 0xC2, 0xA0}),                            u8"\\xFF\\xA0"      },
+        {u8string(u8"\u00A0") + mk_unicode<char8_t>({0xFF}),                 u8"\\u00A0\\xFF"      },
+        {mk_unicode<char8_t>({0xFF, 0xC2, 0xA0}),                            u8"\\xFF\\u00A0"      },
 
         // all four categories
         {u8string(u8"a\t\u00A0") + mk_unicode<char8_t>({0xFF}),
-         u8"a\\t\\xA0\\xFF"                                                                      },
+         u8"a\\t\\u00A0\\xFF"                                                                      },
         {mk_unicode<char8_t>({0xC2}) + u8string(u8"\n£\uFEFF"),
          u8"\\xC2\\n£\\uFEFF"                                                                    },
         {u8string(u8"hello\n£") + u8"\u00A0"
              + mk_unicode<char8_t>({0xED, 0xA0, 0x80}) + u8"world",
-         u8"hello\\n£\\xA0\\xED\\xA0\\x80world"                                                  },
+         u8"hello\\n£\\u00A0\\xED\\xA0\\x80world"                                                  },
     };
     initializer_list<pair<u16string, u8string>> input_output_pairs_u16 = {
         {u"", u8""},
@@ -5257,11 +5257,11 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
 
         // 0x7F-0x9F range
         {u"\u007F", u8"\\x7F"},
-        {u"\u0080", u8"\\x80"},
-        {u"\u009F", u8"\\x9F"},
+        {u"\u0080", u8"\\u0080"},
+        {u"\u009F", u8"\\u009F"},
 
         // special unicode characters
-        {u"\u00A0", u8"\\xA0"}, // non-breaking space
+        {u"\u00A0", u8"\\u00A0"}, // non-breaking space
         {u"\u1680", u8"\\u1680"}, // ogham space mark
         {u"\u2006", u8"\\u2006"}, // six-per-em space
         {u"\u200B", u8"\\u200B"}, // zero width space
@@ -5272,12 +5272,12 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u"\uFFFD", u8"\\uFFFD"}, // replacement character
 
         // embedded in normal strings
-        {u"a\u00A0b", u8"a\\xA0b"}, // non-breaking space
+        {u"a\u00A0b", u8"a\\u00A0b"}, // non-breaking space
         {u"a\u2006b", u8"a\\u2006b"}, // six-per-em space
         {u"£\uFEFF→", u8"£\\uFEFF→"},
 
         // multiple special characters
-        {u"\u00A0\u00A0", u8"\\xA0\\xA0"},
+        {u"\u00A0\u00A0", u8"\\u00A0\\u00A0"},
         {u"\u2006\u200B", u8"\\u2006\\u200B"},
         // lone high surrogate at offset 0
         {mk_unicode<char16_t>({0xD800}), u8"\\uD800"},
@@ -5315,7 +5315,7 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u"£\n→", u8"£\\n→"},
 
         // normal + hex codepoint
-        {u"a\u00A0b", u8"a\\xA0b"},
+        {u"a\u00A0b", u8"a\\u00A0b"},
         {u"→\uFEFF£", u8"→\\uFEFF£"},
 
         // normal + malformed
@@ -5324,27 +5324,27 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u16string(u"£→") + mk_unicode<char16_t>({0xDC00}), u8"£→\\uDC00"},
 
         // escape + hex codepoint
-        {u"\t\u00A0", u8"\\t\\xA0"},
-        {u"\u00A0\n", u8"\\xA0\\n"},
+        {u"\t\u00A0", u8"\\t\\u00A0"},
+        {u"\u00A0\n", u8"\\u00A0\\n"},
 
         // escape + malformed
         {u16string(u"\t") + mk_unicode<char16_t>({0xD800}), u8"\\t\\uD800"},
         {mk_unicode<char16_t>({0xDC00}) + u16string(u"\n"), u8"\\uDC00\\n"},
 
         // hex codepoint + malformed
-        {u16string(u"\u00A0") + mk_unicode<char16_t>({0xD800}), u8"\\xA0\\uD800"
+        {u16string(u"\u00A0") + mk_unicode<char16_t>({0xD800}), u8"\\u00A0\\uD800"
         },
-        {mk_unicode<char16_t>({0xDC00}) + u16string(u"\u00A0"), u8"\\uDC00\\xA0"
+        {mk_unicode<char16_t>({0xDC00}) + u16string(u"\u00A0"), u8"\\uDC00\\u00A0"
         },
 
         // all four categories
         {u16string(u"a\t") + u"\u00A0" + mk_unicode<char16_t>({0xD800}),
-         u8"a\\t\\xA0\\uD800"},
+         u8"a\\t\\u00A0\\uD800"},
         {mk_unicode<char16_t>({0xDC00}) + u16string(u"\n£\uFEFF"),
          u8"\\uDC00\\n£\\uFEFF"},
         {u16string(u"hello\n£") + u"\u00A0"
              + mk_unicode<char16_t>({0xD800, 0xD801}) + u"world",
-         u8"hello\\n£\\xA0\\uD800\\uD801world"},
+         u8"hello\\n£\\u00A0\\uD800\\uD801world"},
     };
     initializer_list<pair<u32string, u8string>> input_output_pairs_u32 = {
         {U"",                                                            u8""              },
@@ -5391,11 +5391,11 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
 
         // 0x7F-0x9F range
         {U"\u007F",                                                      u8"\\x7F"         },
-        {U"\u0080",                                                      u8"\\x80"         },
-        {U"\u009F",                                                      u8"\\x9F"         },
+        {U"\u0080",                                                      u8"\\u0080"         },
+        {U"\u009F",                                                      u8"\\u009F"         },
 
         // special unicode characters
-        {U"\u00A0",                                                      u8"\\xA0"         }, // non-breaking space
+        {U"\u00A0",                                                      u8"\\u00A0"         }, // non-breaking space
         {U"\u1680",                                                      u8"\\u1680"       }, // ogham space mark
         {U"\u2006",                                                      u8"\\u2006"       }, // six-per-em space
         {U"\u200B",                                                      u8"\\u200B"       }, // zero width space
@@ -5406,12 +5406,12 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {U"\uFFFD",                                                      u8"\\uFFFD"       }, // replacement character
 
         // embedded in normal strings
-        {U"a\u00A0b",                                                    u8"a\\xA0b"       }, // non-breaking space
+        {U"a\u00A0b",                                                    u8"a\\u00A0b"       }, // non-breaking space
         {U"a\u2006b",                                                    u8"a\\u2006b"     }, // six-per-em space
         {U"£\uFEFF→",                                                    u8"£\\uFEFF→"     },
 
         // multiple special characters
-        {U"\u00A0\u00A0",                                                u8"\\xA0\\xA0"    },
+        {U"\u00A0\u00A0",                                                u8"\\u00A0\\u00A0"    },
         {U"\u2006\u200B",                                                u8"\\u2006\\u200B"},
         // surrogates - use \uNNNN
         {mk_unicode<char32_t>({0xD800}),                                 u8"\\uD800"       },
@@ -5452,7 +5452,7 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {U"£\n→",                                                        u8"£\\n→"         },
 
         // normal + hex codepoint
-        {U"a\u00A0b",                                                    u8"a\\xA0b"       },
+        {U"a\u00A0b",                                                    u8"a\\u00A0b"       },
         {U"→\uFEFF£",                                                    u8"→\\uFEFF£"     },
 
         // normal + surrogate
@@ -5467,8 +5467,8 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
          u8"£→\\UFFFFFFFF"                                                                 },
 
         // escape + hex codepoint
-        {U"\t\u00A0",                                                    u8"\\t\\xA0"      },
-        {U"\u00A0\n",                                                    u8"\\xA0\\n"      },
+        {U"\t\u00A0",                                                    u8"\\t\\u00A0"      },
+        {U"\u00A0\n",                                                    u8"\\u00A0\\n"      },
 
         // escape + surrogate
         {u32string(U"\t") + mk_unicode<char32_t>({0xD800}),              u8"\\t\\uD800"    },
@@ -5481,28 +5481,28 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
          u8"\\U00110000\\n"                                                                },
 
         // hex codepoint + surrogate
-        {u32string(U"\u00A0") + mk_unicode<char32_t>({0xD800}),          u8"\\xA0\\uD800"
+        {u32string(U"\u00A0") + mk_unicode<char32_t>({0xD800}),          u8"\\u00A0\\uD800"
         },
-        {mk_unicode<char32_t>({0xDC00}) + u32string(U"\u00A0"),          u8"\\uDC00\\xA0"
+        {mk_unicode<char32_t>({0xDC00}) + u32string(U"\u00A0"),          u8"\\uDC00\\u00A0"
         },
 
         // hex codepoint + out of range
         {u32string(U"\u00A0") + mk_unicode<char32_t>({0x11'0000}),
-         u8"\\xA0\\U00110000"                                                              },
+         u8"\\u00A0\\U00110000"                                                              },
         {mk_unicode<char32_t>({0x11'0000}) + u32string(U"\u00A0"),
-         u8"\\U00110000\\xA0"                                                              },
+         u8"\\U00110000\\u00A0"                                                              },
 
         // all categories
         {u32string(U"a\t") + U"\u00A0" + mk_unicode<char32_t>({0xD800}),
-         u8"a\\t\\xA0\\uD800"                                                              },
+         u8"a\\t\\u00A0\\uD800"                                                              },
         {mk_unicode<char32_t>({0xDC00}) + u32string(U"\n£\uFEFF"),
          u8"\\uDC00\\n£\\uFEFF"                                                            },
         {u32string(U"hello\n£") + U"\u00A0" + mk_unicode<char32_t>({0xD800})
              + U"world",
-         u8"hello\\n£\\xA0\\uD800world"                                                    },
+         u8"hello\\n£\\u00A0\\uD800world"                                                    },
         {u32string(U"a\t") + U"\u00A0" + mk_unicode<char32_t>({0xD800})
              + mk_unicode<char32_t>({0x11'0000}) + U"b",
-         u8"a\\t\\xA0\\uD800\\U00110000b"                                                  },
+         u8"a\\t\\u00A0\\uD800\\U00110000b"                                                  },
     };
     initializer_list<pair<string, u8string>> input_output_pairs_ascii = {
         {"",                                                    u8""                  },

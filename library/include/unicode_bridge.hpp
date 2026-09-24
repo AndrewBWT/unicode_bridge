@@ -2686,6 +2686,62 @@ requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(const InputChar char_arg) noexcept;
 
+template <typename OutputChar, typename InputChar>
+requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
+constexpr OutputChar
+    cast_ascii(
+        const InputChar char_arg
+    ) noexcept
+{
+    return static_cast<OutputChar>(char_arg);
+}
+
+template <typename OutputChar, typename InputChar>
+requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
+constexpr void
+    append_ascii(
+        std::basic_string<OutputChar>& output_arg,
+        const InputChar                char_arg
+    )
+{
+    output_arg.push_back(cast_ascii<OutputChar>(char_arg));
+}
+
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<OutputChar> && is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr void
+    append_ascii(
+        std::basic_string<OutputChar>& output_arg,
+        ArgType                        str_arg
+    )
+{
+    using InputChar = char_type_of_t<ArgType>;
+    const std::basic_string_view<InputChar> str_view{str_arg};
+    output_arg.reserve(output_arg.size() + str_view.size());
+    for (const InputChar char_var : str_view)
+    {
+        append_ascii(output_arg, char_var);
+    }
+}
+
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<OutputChar> && is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::basic_string<OutputChar>
+    cast_ascii(
+        ArgType str_arg
+    )
+{
+    std::basic_string<OutputChar> result;
+    append_ascii(result, str_arg);
+    return result;
+}
+
 template <typename CharT>
 requires is_char_type_c<CharT>
 constexpr bool
@@ -2773,22 +2829,23 @@ constexpr bool
                    : is_ascii_whitespace(static_cast<char>(char_arg));
     }
 }
+
 template <typename T>
 constexpr std::tuple<bool, bool, std::basic_string_view<T>>
-make_focused_string(
-    const std::basic_string_view<T> string_view_arg,
-    const std::size_t               idx_to_focus_on_arg,
-    const std::size_t               size_of_idx_to_focus_on,
-    const std::size_t               maximum_left_offset_from_idx_arg = 8,
-    const std::size_t maximum_right_offset_from_idx_arg = 8
-) noexcept
+    make_focused_string(
+        const std::basic_string_view<T> string_view_arg,
+        const std::size_t               idx_to_focus_on_arg,
+        const std::size_t               size_of_idx_to_focus_on,
+        const std::size_t               maximum_left_offset_from_idx_arg  = 8,
+        const std::size_t               maximum_right_offset_from_idx_arg = 8
+    ) noexcept
 {
     using namespace std;
     if (string_view_arg.empty())
     {
-        return { false, false, string_view_arg };
+        return {false, false, string_view_arg};
     }
-    bool         cutoff_left = true;
+    bool         cutoff_left  = true;
     bool         cutoff_right = true;
     const size_t normalised_focused_idx
         = std::min(idx_to_focus_on_arg, string_view_arg.size() - 1);
@@ -2796,7 +2853,7 @@ make_focused_string(
         normalised_focused_idx + size_of_idx_to_focus_on,
         string_view_arg.size() - 1
     );
-    size_t start_char = normalised_focused_idx;
+    size_t start_char    = normalised_focused_idx;
     size_t chars_counted = 0;
     while (chars_counted < maximum_left_offset_from_idx_arg && start_char > 0)
     {
@@ -2812,10 +2869,10 @@ make_focused_string(
         {
             optional<char> res;
             res = (start_char == 0)
-                ? std::nullopt
-                : make_optional(
-                    *(string_view_arg.begin() + start_char - 1)
-                );
+                      ? std::nullopt
+                      : make_optional(
+                            *(string_view_arg.begin() + start_char - 1)
+                        );
             chars_counted++;
             start_char -= (res.has_value() ? 1 : 0);
         }
@@ -2825,9 +2882,9 @@ make_focused_string(
         cutoff_left = false;
     }
     size_t end_char = normalised_focused_idx_end;
-    chars_counted = 0;
+    chars_counted   = 0;
     while (chars_counted < maximum_right_offset_from_idx_arg
-        && end_char < string_view_arg.size())
+           && end_char < string_view_arg.size())
     {
         if constexpr (char_type_is_unicode_c<T>)
         {
@@ -2841,8 +2898,8 @@ make_focused_string(
         {
             optional<char> res;
             res = (end_char >= string_view_arg.size())
-                ? std::nullopt
-                : make_optional(*(string_view_arg.begin() + end_char));
+                      ? std::nullopt
+                      : make_optional(*(string_view_arg.begin() + end_char));
             chars_counted++;
             end_char += (res.has_value() ? 1 : 0);
         }
@@ -2858,6 +2915,7 @@ make_focused_string(
         string_view_arg.substr(start_char, end_char - start_char)
     };
 }
+
 template <typename To, typename FromChar>
 requires is_char_type_c<To> && is_char_type_c<FromChar>
          && char_convertible_to_c<FromChar, To>
@@ -2996,11 +3054,6 @@ struct forward_scan_unicode_error_factory
 
     static constexpr forward_scan_unicode_error
         unexpected_low_surrogate(
-            const char16_t char16_character_arg,
-            const bool     is_wchar_arg
-        ) noexcept;
-    static constexpr forward_scan_unicode_error
-        unexpected_high_surrogate(
             const char16_t char16_character_arg,
             const bool     is_wchar_arg
         ) noexcept;
@@ -3355,105 +3408,149 @@ template <typename T>
 requires std::unsigned_integral<T>
 constexpr std::u8string
     positive_integer_to_placement(const T number_arg) noexcept;
-
-template <typename CharT>
-requires (std::same_as<CharT, char16_t>
-          && UNICODE_BRIDGE_NAMESPACE_INTERNAL::wchar_is_16_bit)
-         || (
-             std::same_as<CharT, char32_t>
-             && UNICODE_BRIDGE_NAMESPACE_INTERNAL::wchar_is_32_bit
-         )
-constexpr void cast_wstring_to_unicode_string_append(
-    const std::wstring_view   str_arg,
-    std::basic_string<CharT>& str_to_append_to_arg
-) noexcept
+enum class hex_padding
 {
-    str_to_append_to_arg.append(str_arg.begin(), str_arg.end());
-}
+    none,
+    full_width,  // 2 * sizeof(T):
+    min_four,    // Minimum 4.
+    value_based, // fits in 2/4/8 bits -> min 2/4/8
+    exactly_two, // Exactly 2.
+};
 
-template <typename WCharT = wchar_t>
-constexpr auto
-    convert_wstring_to_unicode_string_and_append(const std::wstring_view str_arg
-    ) noexcept;
+enum class str_prefix
+{
+    none,
+    unicode_plus,  // U+
+    zero_x,        // 0x
+    arg_dependant, // If Unicode char fits in 8/16/32 bits -> \x/\u/\U
+    slash_x,       // \x
+};
 
-template <typename T, bool Use_Capitals, bool Variable_Size_Prefix>
+template <
+    bool        Use_Capitals,
+    hex_padding Hex_Mode,
+    str_prefix  Prefix_Mode,
+    typename T>
 requires is_char_type_c<T>
 constexpr std::u8string
-    make_hex_from_char_with_prefix_2(
-        const T                  char_arg,
-        const std::u8string_view prefix_arg
-    ) noexcept
+    make_hex_from_char(
+        const T char_arg
+    )
 {
     using namespace std;
-    using Type_To_Cast_To = char_underlying_type_t<T>;
-    u8string        character_as_hex;
-    Type_To_Cast_To character_as_casted_type{
-        static_cast<Type_To_Cast_To>(char_arg)
-    };
-    if constexpr (Use_Capitals)
+    using Underlying = char_underlying_type_t<T>;
+    constexpr u8string_view digits_as_chars
+        = Use_Capitals ? u8"0123456789ABCDEF" : u8"0123456789abcdef";
+
+    const Underlying value_as_uint{static_cast<Underlying>(char_arg)};
+    Underlying       value_as_uint_cpy{value_as_uint};
+    u8string         result_value;
+    result_value.reserve(sizeof(Underlying) * 2);
+    do
     {
-        const char8_t digits[] = u8"0123456789ABCDEF";
-        std::u8string buf;
-        if (character_as_casted_type == 0)
-        {
-            buf = u8"0";
-        }
-        while (character_as_casted_type)
-        {
-            buf                       += digits[character_as_casted_type & 0xF];
-            character_as_casted_type >>= 4;
-        }
-        // digits accumulated in reverse
-        std::reverse(buf.begin(), buf.end());
-        character_as_hex = buf;
+        result_value.push_back(digits_as_chars[value_as_uint_cpy & 0xF]);
+        value_as_uint_cpy >>= 4;
     }
-    else
+    while (value_as_uint_cpy != 0);
+    if constexpr (Hex_Mode == hex_padding::full_width)
     {
-        const char8_t digits[] = u8"0123456789abcdef";
-        std::u8string buf;
-        if (character_as_casted_type == 0)
-        {
-            buf = u8"0";
-        }
-        while (character_as_casted_type)
-        {
-            buf                       += digits[character_as_casted_type & 0xF];
-            character_as_casted_type >>= 4;
-        }
-        // digits accumulated in reverse
-        std::reverse(buf.begin(), buf.end());
-        character_as_hex = buf;
+        result_value.append(
+            u8string((sizeof(T) * 2) - result_value.size(), u8'0')
+        );
     }
-    u8string return_value{prefix_arg};
-    if constexpr (Variable_Size_Prefix)
+    else if constexpr (Hex_Mode == hex_padding::exactly_two)
     {
-        if (character_as_hex.size() <= 4)
+        result_value.append(
+            result_value.size() < 2 ? 2 - result_value.size() : 0, u8'0'
+        );
+    }
+    else if constexpr (Hex_Mode == hex_padding::min_four)
+    {
+        result_value.append(
+            result_value.size() < 4 ? 4 - result_value.size() : 0, u8'0'
+        );
+    }
+    else if constexpr (Hex_Mode == hex_padding::none)
+    {
+    }
+    else if constexpr (Hex_Mode == hex_padding::value_based)
+    {
+        if constexpr (sizeof(T) == 1)
         {
-            return_value.append(4 - character_as_hex.size(), u8'0');
+            result_value.append(u8string(2 - result_value.size(), u8'0'));
+        }
+        else if constexpr (sizeof(T) == 2)
+        {
+            result_value.append(u8string(
+                (value_as_uint <= static_cast<Underlying>(ascii_limit<T>()) ? 2
+                                                                            : 4)
+                    - result_value.size(),
+                u8'0'
+            ));
+        }
+        else if constexpr (sizeof(T) == 4)
+        {
+            result_value.append(u8string(
+                (value_as_uint <= static_cast<Underlying>(
+                     std::numeric_limits<uint16_t>::max()
+                 )
+                     ? (value_as_uint
+                                <= static_cast<Underlying>(ascii_limit<T>())
+                            ? 2
+                            : 4)
+                     : 8)
+                    - result_value.size(),
+                u8'0'
+            ));
         }
     }
-    else
+    if constexpr (Prefix_Mode == str_prefix::none)
     {
-        return_value.append(u8string(
-            (sizeof(Type_To_Cast_To) * 2) - character_as_hex.size(), u8'0'
-        ));
     }
-    return_value.append(character_as_hex);
-    return return_value;
+    else if constexpr (Prefix_Mode == str_prefix::slash_x)
+    {
+        result_value.append(u8"x\\");
+    }
+    else if constexpr (Prefix_Mode == str_prefix::unicode_plus)
+    {
+        result_value.append(u8"+U");
+    }
+    else if constexpr (Prefix_Mode == str_prefix::zero_x)
+    {
+        result_value.append(u8"x0");
+    }
+    else if constexpr (Prefix_Mode == str_prefix::arg_dependant)
+    {
+        if constexpr (sizeof(T) == 1)
+        {
+            result_value.append(u8"x\\");
+        }
+        else if constexpr (sizeof(T) == 2)
+        {
+            result_value.append(
+                value_as_uint <= static_cast<Underlying>(ascii_limit<T>())
+                    ? u8"x\\"
+                    : u8"u\\"
+            );
+        }
+        else if constexpr (sizeof(T) == 4)
+        {
+            result_value.append(
+                value_as_uint <= static_cast<Underlying>(
+                    std::numeric_limits<uint16_t>::max()
+                )
+                    ? (value_as_uint
+                               <= static_cast<Underlying>(ascii_limit<T>())
+                           ? u8"x\\"
+                           : u8"u\\")
+                    : u8"U\\"
+            );
+        }
+    }
+    std::ranges::reverse(result_value);
+    return result_value;
 }
 
-template <typename T, bool Use_Capitals, bool Variable_Size_Prefix>
-requires is_char_type_c<T>
-constexpr std::u8string
-    make_hex_from_char_with_prefix(
-        const T                  char_arg,
-        const std::u8string_view prefix_arg
-    ) noexcept;
-
-template <typename T>
-requires is_char_type_c<T>
-constexpr std::u8string
-    represent_char_as_hex_for_output(const T char_arg) noexcept;
 template <typename T>
 using basic_unicode_result_t = std::expected<T, unicode_conversion_error>;
 template <typename T>
@@ -3475,11 +3572,10 @@ requires is_wchar_and_32_bit_c<T> || std::same_as<T, char32_t>
 constexpr bool
     is_invalid_char32(const T char_arg) noexcept;
 template <typename CharT, typename CharU>
-constexpr void
+constexpr std::size_t
     add_char_to_unicode_string(
         const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg,
-        std::size_t& n_elements_added_arg
+        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
     ) noexcept;
 template <bool Return_Reason, typename T, typename Original_Value_Type>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
@@ -3737,28 +3833,11 @@ constexpr bool is_low_surrogate(const T char_arg) noexcept;
 template <typename InputChar, typename OutputChar>
 constexpr std::optional<std::basic_string<OutputChar>>
     special_char_as_string(const char32_t char_arg) noexcept;
-
-template <typename T>
-requires is_char_type_c<T>
-constexpr std::u8string
-    represent_char_as_hex_for_printing(const T char_arg) noexcept;
-
-template <typename T>
-constexpr std::wstring
-    cast_unicode_string_to_wstring(const T str_arg_view);
 template <typename CharT>
 concept is_valid_wstring_cast_char_c
     = std::same_as<CharT, wchar_t>
       || (std::same_as<CharT, char16_t> && wchar_is_16_bit)
       || (std::same_as<CharT, char32_t> && wchar_is_32_bit);
-template <typename T>
-requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::is_valid_wstring_cast_char_c<
-    typename T::value_type>
-constexpr void
-    cast_unicode_string_to_wstring_append(
-        const T       str_arg_view,
-        std::wstring& str_to_append_to_arg
-    ) noexcept;
 
 template <typename T>
 constexpr char32_t
@@ -3840,7 +3919,10 @@ constexpr std::u8string
     using namespace std;
     if (chars_size_arg == 1)
     {
-        return represent_char_as_hex_for_output(char_array_arg[0]);
+        return make_hex_from_char<
+            true,
+            hex_padding::full_width,
+            str_prefix::zero_x>(char_array_arg[0]);
     }
     else
     {
@@ -3851,9 +3933,10 @@ constexpr std::u8string
             {
                 chars_as_hex.append(u8", ");
             }
-            chars_as_hex.append(
-                represent_char_as_hex_for_output(char_array_arg[idx])
-            );
+            chars_as_hex.append(make_hex_from_char<
+                                true,
+                                hex_padding::full_width,
+                                str_prefix::zero_x>(char_array_arg[idx]));
         }
         chars_as_hex.append(u8"]");
         return chars_as_hex;
@@ -4038,14 +4121,14 @@ constexpr std::u8string
     {
     case invalid_utf32_code_point:
     {
-        const u8string codepoint_as_hex
-            = make_hex_from_char_with_prefix_2<char32_t, true, true>(
-                _char32_character, u8"U+"
-            );
+        const u8string codepoint_as_hex = make_hex_from_char<
+            true,
+            hex_padding::min_four,
+            str_prefix::unicode_plus>(_char32_character);
         u8string chars_as_hex;
         chars_as_hex.append(
-            make_hex_from_char_with_prefix<char32_t, true, true>(
-                _char32_character, u8"0x"
+            make_hex_from_char<true, hex_padding::min_four, str_prefix::zero_x>(
+                _char32_character
             )
         );
         msg.append(generic_begin_str<Arg_Type>(
@@ -4059,10 +4142,10 @@ constexpr std::u8string
     }
     case overlong_encoding:
     {
-        const u8string codepoint_as_hex
-            = make_hex_from_char_with_prefix_2<char32_t, true, true>(
-                _char32_character, u8"U+"
-            );
+        const u8string codepoint_as_hex = make_hex_from_char<
+            true,
+            hex_padding::min_four,
+            str_prefix::unicode_plus>(_char32_character);
         auto char_as_u8
             = unicode_conversion_with_exception<char8_t>(_char32_character);
         utf8_begin_str(
@@ -4096,10 +4179,10 @@ constexpr std::u8string
     break;
     case invalid_utf32_code_point_after_utf8_conversion:
     {
-        const u8string codepoint_as_hex
-            = make_hex_from_char_with_prefix<char32_t, true, true>(
-                _char32_character, u8"U+"
-            );
+        const u8string codepoint_as_hex = make_hex_from_char<
+            true,
+            hex_padding::min_four,
+            str_prefix::unicode_plus>(_char32_character);
         utf8_begin_str(
             chars_to_hex(_u8_code_points, _auxillery_data), _auxillery_data
         );
@@ -4171,7 +4254,6 @@ constexpr std::u8string
     using enum forward_scan_unicode_error_code;
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    auto     char32_character{_basic_unicode_error.char32_character()};
     u8string msg;
     auto     utf8_begin_str
         = [&](const u8string& chars_as_hex, const size_t n_code_units)
@@ -4200,7 +4282,10 @@ constexpr std::u8string
             u8"sequence), 0xE0 to 0xEF (three-byte sequence), or 0xF0 to 0xF7 "
             u8"(four-byte sequence). As "
         );
-        msg.append(represent_char_as_hex_for_output(u8_code_points[0]));
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::full_width,
+                   str_prefix::zero_x>(u8_code_points[0]));
         msg.append(u8" falls outside all of these ranges, it cannot begin a "
                    u8"sequence representing a valid Unicode scalar value, and "
                    u8"the function was terminated.");
@@ -4432,7 +4517,10 @@ constexpr std::u8string
                 const bool is_last = (idx + 1 == numb_invalid_code_points);
                 invalid_code_points.append(is_last ? u8" and " : u8", ");
             }
-            invalid_code_points.append(represent_char_as_hex_for_output(
+            invalid_code_points.append(make_hex_from_char<
+                                       true,
+                                       hex_padding::full_width,
+                                       str_prefix::zero_x>(
                 u8_code_points[invalid_code_point_index]
             ));
         }
@@ -4470,15 +4558,19 @@ constexpr std::u8string
         msg.append(
             u8" form the start of a surrogate pair. The first code unit ("
         );
-        msg.append(represent_char_as_hex_for_output(
-            _basic_unicode_error.u16_code_points()[0]
-        ));
+        msg.append(
+            make_hex_from_char<true, hex_padding::min_four, str_prefix::zero_x>(
+                _basic_unicode_error.u16_code_points()[0]
+            )
+        );
         msg.append(u8") is a high surrogate, which must be followed by a low "
                    u8"surrogate inclusively between 0xDC00 and 0xDFFF. "
                    u8"However, the second code unit (");
-        msg.append(represent_char_as_hex_for_output(
-            _basic_unicode_error.u16_code_points()[1]
-        ));
+        msg.append(
+            make_hex_from_char<true, hex_padding::min_four, str_prefix::zero_x>(
+                _basic_unicode_error.u16_code_points()[1]
+            )
+        );
         msg.append(u8") falls outside this range, and therefore the two code "
                    u8"units cannot represent a valid Unicode scalar value, and "
                    u8"the function was terminated.");
@@ -4910,7 +5002,11 @@ constexpr std::u8string
     msg.append(u8"The ");
     msg.append(positive_integer_to_placement(_index + 1));
     msg.append(u8" character (");
-    msg.append(represent_char_as_hex_for_output(_character));
+    msg.append(
+        make_hex_from_char<true, hex_padding::full_width, str_prefix::zero_x>(
+            _character
+        )
+    );
     msg.append(u8") in the ASCII input ");
     if constexpr (not std::same_as<String_Type, std::monostate>)
     {
@@ -4925,7 +5021,11 @@ constexpr std::u8string
     msg.append(u8"passed to the function was found to be invalid ASCII. This "
                u8"function can only convert ASCII to Unicode — that is, "
                u8"character values inclusively between 0x00 and 0x7F. As ");
-    msg.append(represent_char_as_hex_for_output(_character));
+    msg.append(
+        make_hex_from_char<true, hex_padding::full_width, str_prefix::zero_x>(
+            _character
+        )
+    );
     msg.append(u8" falls outside this "
                u8"range, it cannot be converted to Unicode, and the function "
                u8"was terminated.");
@@ -4998,7 +5098,7 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
     auto&    basic_error_data{
         _error._forward_scan_unicode_error._basic_unicode_error
     };
-    auto ki = special_char_as_string<char32_t, char32_t>(
+    auto has_special_encoding = special_char_as_string<char32_t, char32_t>(
         basic_error_data._char32_character
     );
     auto print_func = [&]()
@@ -5006,10 +5106,13 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         msg.append(u8" encode");
         msg.append(basic_error_data._auxillery_data == 1 ? u8"s" : u8"");
         msg.append(u8" the Unicode scalar value ");
-        msg.append(make_hex_from_char_with_prefix_2<char32_t, true, true>(
-            basic_error_data._char32_character, u8"U+"
-        ));
-        if (ki.has_value() == false || ki.value().size() <= 2)
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::min_four,
+                   str_prefix::unicode_plus>(basic_error_data._char32_character)
+        );
+        if (has_special_encoding.has_value() == false
+            || has_special_encoding.value().size() <= 2)
         {
             msg.append(u8" ('");
             msg.append(to_formatted_unicode_string<char8_t>(
@@ -5021,9 +5124,11 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             u8". However, this function converts Unicode to ASCII — valid "
             u8"ASCII values are inclusively between U+0000 and U+007F. As "
         );
-        msg.append(make_hex_from_char_with_prefix_2<char32_t, true, true>(
-            basic_error_data._char32_character, u8"U+"
-        ));
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::min_four,
+                   str_prefix::unicode_plus>(basic_error_data._char32_character)
+        );
         msg.append(u8" falls outside this range, it cannot be represented as "
                    "ASCII, and the function was terminated.");
     };
@@ -5205,9 +5310,7 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using CharT = typename complete_string_arg_char_type<String_Type>::type;
     using enum prev_char32_error_code;
-    bool     brackets_open = false;
     u8string msg;
     switch (_code)
     {
@@ -5358,7 +5461,10 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
                     ? u8" continuation byte, the next code unit ("
                     : u8" continuation bytes, the next code unit ("
             );
-            msg.append(represent_char_as_hex_for_output(invalid_byte));
+            msg.append(make_hex_from_char<
+                       true,
+                       hex_padding::full_width,
+                       str_prefix::zero_x>(invalid_byte));
             msg.append(u8") was found to be invalid — ");
         }
         msg.append(
@@ -5368,7 +5474,10 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             u8"0xE0 to 0xEF (three-byte leading byte), or 0xF0 to 0xF7 "
             u8"(four-byte leading byte). As "
         );
-        msg.append(represent_char_as_hex_for_output(invalid_byte));
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::full_width,
+                   str_prefix::zero_x>(invalid_byte));
         msg.append(
             u8" falls outside all of these ranges, it cannot appear in a "
             u8"valid UTF-8 sequence, and the function was terminated."
@@ -5453,14 +5562,18 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         );
         msg.append(u8" form the end of a surrogate "
                    u8"pair. The second code unit (");
-        msg.append(represent_char_as_hex_for_output(
-            _basic_unicode_error.u16_code_points()[1]
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::full_width,
+                   str_prefix::zero_x>(_basic_unicode_error.u16_code_points()[1]
         ));
         msg.append(u8") is a low surrogate, which must be preceded by a high "
                    u8"surrogate inclusively between 0xD800 and 0xDBFF. "
                    u8"However, the first code unit (");
-        msg.append(represent_char_as_hex_for_output(
-            _basic_unicode_error.u16_code_points()[0]
+        msg.append(make_hex_from_char<
+                   true,
+                   hex_padding::full_width,
+                   str_prefix::zero_x>(_basic_unicode_error.u16_code_points()[0]
         ));
         msg.append(u8") falls outside this range, and therefore the two code "
                    u8"units cannot represent a valid Unicode scalar value, "
@@ -5868,7 +5981,6 @@ constexpr std::optional<ascii_to_unicode_error>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using ResultType         = std::basic_string<OutputChar>;
     using itt                = typename string_view::const_iterator;
     using U                  = char_type_of_t<ArgType>;
     auto sv                  = basic_string_view<U>(str_arg);
@@ -6150,7 +6262,7 @@ constexpr std::optional<unicode_conversion_error>
             }
             else if constexpr (std::same_as<OutputChar, char8_t>)
             {
-                add_char_to_unicode_string(character, rv, chars_written);
+                chars_written += add_char_to_unicode_string(character, rv);
             }
         }
         else
@@ -6712,37 +6824,33 @@ constexpr std::basic_string<OutputChar>
     auto sv = basic_string_view<InputChar>(str_arg);
     auto string_iterator{std::begin(sv)};
     auto string_iterator_end{std::end(sv)};
-    auto micro_conversion_func
-        = [](const u8string_view sv_arg) -> basic_string<OutputChar>
+    auto get_non_printable_char_as_hex_string
+        = []<typename CharT>(const CharT char_arg
+          ) -> optional<basic_string<OutputChar>>
     {
-        return basic_string<OutputChar>(sv_arg.begin(), sv_arg.end());
+        const char32_t char_var = static_cast<char32_t>(
+            static_cast<char_underlying_type_t<CharT>>(char_arg)
+        );
+        return special_char_as_string<InputChar, OutputChar>(char_var);
     };
     if constexpr (same_as<char, InputChar>)
     {
         for (; string_iterator != string_iterator_end; ++string_iterator)
         {
             const char character{*string_iterator};
-            if (auto special_char_str{special_char_as_string<char, char8_t>(
-                    static_cast<char32_t>(character)
-                )};
-                special_char_str.has_value())
+            if (auto non_printable_char
+                = get_non_printable_char_as_hex_string(character);
+                non_printable_char.has_value())
             {
-                return_value.append(
-                    micro_conversion_func(special_char_str.value())
-                );
-            }
-            else if (character > ascii_limit<char>() || character < 0)
-            {
-                return_value.append(micro_conversion_func(
-                    represent_char_as_hex_for_printing(character)
-                ));
+                return_value.append(non_printable_char.value());
             }
             else
             {
-                return_value.push_back(static_cast<char8_t>(character));
+                return_value.push_back(static_cast<OutputChar>(character));
             }
         }
     }
+
     else
     {
         while (string_iterator != string_iterator_end)
@@ -6755,48 +6863,29 @@ constexpr std::basic_string<OutputChar>
             };
             if (character_opt.has_value())
             {
-                if (auto special_char_str{
-                        special_char_as_string<InputChar, OutputChar>(
-                            character_opt.value()
-                        )
-                    };
-                    special_char_str.has_value())
+                if (auto non_printable_char
+                    = get_non_printable_char_as_hex_string(character_opt.value()
+                    );
+                    non_printable_char.has_value())
                 {
-                    return_value.append(special_char_str.value());
+                    return_value.append(non_printable_char.value());
                 }
                 else
                 {
-                    size_t elements = 0;
                     add_char_to_unicode_string(
-                        character_opt.value(), return_value_inserter, elements
+                        character_opt.value(), return_value_inserter
                     );
                 }
             }
             else
             {
-                if constexpr (std::same_as<char32_t, InputChar>)
-                {
-                    if (is_surrogate<InputChar>(*string_iterator))
-                    {
-                        return_value.append(micro_conversion_func(
-                            represent_char_as_hex_for_printing(
-                                static_cast<char16_t>(*string_iterator)
-                            )
-                        ));
-                    }
-                    else
-                    {
-                        return_value.append(micro_conversion_func(
-                            represent_char_as_hex_for_printing(*string_iterator)
-                        ));
-                    }
-                }
-                else
-                {
-                    return_value.append(micro_conversion_func(
-                        represent_char_as_hex_for_printing(*string_iterator)
-                    ));
-                }
+                append_ascii(
+                    return_value,
+                    make_hex_from_char<
+                        true,
+                        hex_padding::value_based,
+                        str_prefix::arg_dependant>(*string_iterator)
+                );
                 ++string_iterator;
             }
         }
@@ -7027,26 +7116,6 @@ constexpr forward_scan_unicode_error
             U'\0',
             0,
             {char16_character_arg, u'\0'},
-            is_wchar_arg
-        )
-    );
-}
-
-constexpr forward_scan_unicode_error
-    forward_scan_unicode_error_factory::unexpected_high_surrogate(
-        const char16_t char16_character_arg,
-        const bool     is_wchar_arg
-    ) noexcept
-{
-    return forward_scan_unicode_error(
-        forward_scan_unicode_error::forward_scan_unicode_error_code::
-            unexpected_low_surrogate,
-        basic_unicode_error(
-            basic_unicode_error::basic_unicode_error_code::generic_error,
-            {u8'\0', u8'\0', u8'\0', u8'\0'},
-            U'\0',
-            0,
-            {u'\0', u'\0'},
             is_wchar_arg
         )
     );
@@ -7341,95 +7410,6 @@ constexpr std::u8string
     return msg;
 }
 
-template <typename T, bool Use_Capitals, bool Variable_Size_Prefix>
-requires is_char_type_c<T>
-constexpr std::u8string
-    make_hex_from_char_with_prefix(
-        const T                  char_arg,
-        const std::u8string_view prefix_arg
-    ) noexcept
-{
-    using namespace std;
-    using Type_To_Cast_To = char_underlying_type_t<T>;
-    u8string        character_as_hex;
-    Type_To_Cast_To character_as_casted_type{
-        static_cast<Type_To_Cast_To>(char_arg)
-    };
-    if constexpr (Use_Capitals)
-    {
-        const char8_t digits[] = u8"0123456789ABCDEF";
-        std::u8string buf;
-        if (character_as_casted_type == 0)
-        {
-            buf = u8"0";
-        }
-        while (character_as_casted_type)
-        {
-            buf                       += digits[character_as_casted_type & 0xF];
-            character_as_casted_type >>= 4;
-        }
-        // digits accumulated in reverse
-        std::reverse(buf.begin(), buf.end());
-        character_as_hex = buf;
-    }
-    else
-    {
-        const char8_t digits[] = u8"0123456789abcdef";
-        std::u8string buf;
-        if (character_as_casted_type == 0)
-        {
-            buf = u8"0";
-        }
-        while (character_as_casted_type)
-        {
-            buf                       += digits[character_as_casted_type & 0xF];
-            character_as_casted_type >>= 4;
-        }
-        // digits accumulated in reverse
-        std::reverse(buf.begin(), buf.end());
-        character_as_hex = buf;
-    }
-    u8string return_value{prefix_arg};
-    if constexpr (Variable_Size_Prefix)
-    {
-        if (character_as_hex.size() <= 2)
-        {
-            return_value.append(2 - character_as_hex.size(), u8'0');
-        }
-        else if (character_as_hex.size() <= 4)
-        {
-            return_value.append(4 - character_as_hex.size(), u8'0');
-        }
-        else if (character_as_hex.size() <= 6)
-        {
-            return_value.append(6 - character_as_hex.size(), u8'0');
-        }
-        else
-        {
-            return_value.append(8 - character_as_hex.size(), u8'0');
-        }
-    }
-    else
-    {
-        return_value.append(u8string(
-            (sizeof(Type_To_Cast_To) * 2) - character_as_hex.size(), u8'0'
-        ));
-    }
-    return_value.append(character_as_hex);
-    return return_value;
-}
-
-template <typename T>
-requires is_char_type_c<T>
-constexpr std::u8string
-    represent_char_as_hex_for_output(
-        const T char_arg
-    ) noexcept
-{
-    return UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-        make_hex_from_char_with_prefix<T, true, false>(char_arg, u8"0x");
-}
-
 constexpr std::optional<std::pair<char32_t, std::size_t>>
     if_invalid_u32string_return_char_and_position(
         const std::u32string_view str_arg
@@ -7493,14 +7473,14 @@ constexpr bool
 }
 
 template <typename CharT, typename CharU>
-constexpr void
+constexpr std::size_t
     add_char_to_unicode_string(
         const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg,
-        std::size_t& n_elements_added_arg
+        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
     ) noexcept
 {
     using namespace std;
+    size_t n_elements_added = 0;
     if constexpr (same_as<CharT, char32_t> && same_as<CharU, char8_t>)
     {
         constexpr char8_t final_six_bits_set{0b0011'1111};
@@ -7511,7 +7491,7 @@ constexpr void
         {
             // 1-byte UTF-8
             inserter_arg = static_cast<char8_t>(char_arg);
-            n_elements_added_arg++;
+            n_elements_added++;
         }
         else if (char_arg <= two_char8_limit<char32_t>())
         {
@@ -7524,7 +7504,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
-            n_elements_added_arg += 2;
+            n_elements_added += 2;
         }
         else if (char_arg
                  <= single_char16_limit_and_three_char8_limit<char32_t>())
@@ -7538,7 +7518,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
-            n_elements_added_arg += 3;
+            n_elements_added += 3;
         }
         else if (char_arg <= char32_limit<char32_t>())
         {
@@ -7554,7 +7534,7 @@ constexpr void
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
-            n_elements_added_arg += 4;
+            n_elements_added += 4;
         }
         else
         {
@@ -7569,9 +7549,10 @@ constexpr void
         for (auto&& character : res)
         {
             inserter_arg = character;
-            n_elements_added_arg++;
+            n_elements_added++;
         }
     }
+    return n_elements_added;
 }
 
 template <bool Return_Reason, typename T, typename Original_Value_Type>
@@ -7908,7 +7889,7 @@ constexpr std::conditional_t<
     {
         auto       local_iterator{iterator_arg};
         const auto byte_1{*local_iterator};
-        auto       is_continuation_byte = [](const char8_t char_arg)
+        auto       is_not_continuation_byte = [](const char8_t char_arg)
         {
             return (char_arg & 0b1100'0000) != 0b1000'0000;
         };
@@ -7967,7 +7948,7 @@ constexpr std::conditional_t<
             {
                 ++local_iterator;
                 const auto byte_n{*local_iterator};
-                if (is_continuation_byte(byte_n))
+                if (is_not_continuation_byte(byte_n))
                 {
                     if constexpr (Return_Reason)
                     {
@@ -7992,7 +7973,7 @@ constexpr std::conditional_t<
                             break;
                         case 3:
                             sub_error = (idx == 0)
-                                            ? (is_continuation_byte(
+                                            ? (is_not_continuation_byte(
                                                    *(local_iterator + 1)
                                                )
                                                    ? size_3_invalid_indexes_1_2
@@ -8005,10 +7986,12 @@ constexpr std::conditional_t<
                             case 0:
                             {
                                 const bool third_invalid
-                                    = is_continuation_byte(*(local_iterator + 1)
+                                    = is_not_continuation_byte(
+                                        *(local_iterator + 1)
                                     );
                                 const bool fourth_invalid
-                                    = is_continuation_byte(*(local_iterator + 2)
+                                    = is_not_continuation_byte(
+                                        *(local_iterator + 2)
                                     );
                                 if (third_invalid && fourth_invalid)
                                 {
@@ -8029,11 +8012,11 @@ constexpr std::conditional_t<
                             }
                             break;
                             case 1:
-                                sub_error
-                                    = is_continuation_byte(*(local_iterator + 1)
-                                      )
-                                          ? size_4_invalid_indexes_2_3
-                                          : size_4_invalid_indexes_2;
+                                sub_error = is_not_continuation_byte(
+                                                *(local_iterator + 1)
+                                            )
+                                                ? size_4_invalid_indexes_2_3
+                                                : size_4_invalid_indexes_2;
                                 break;
                             default:
                                 sub_error = size_4_invalid_indexes_3;
@@ -8148,7 +8131,6 @@ constexpr std::conditional_t<
             Original_Value_Type,
             forward_scan_unicode_error_factory,
             forward_scan_unicode_error>(iterator_arg);
-        const CharT character{*iterator_arg};
     }
     else
     {
@@ -8324,323 +8306,94 @@ constexpr std::optional<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    auto micro_conversion_func
-        = [](const u8string_view sv) -> basic_string<OutputChar>
-    {
-        return basic_string<OutputChar>(sv.begin(), sv.end());
-    };
+    constexpr auto padding = same_as<char, InputChar>
+                                 ? hex_padding::exactly_two
+                                 : hex_padding::value_based;
+    constexpr auto prefix  = same_as<char, InputChar>
+                                 ? str_prefix::slash_x
+                                 : str_prefix::arg_dependant;
+    // These characters have a set return value, which we conver to the correct
+    // type.
     switch (char_arg)
     {
     case 0x00:
-        return micro_conversion_func(u8"\\0");
+        return cast_ascii<OutputChar>(u8"\\0");
     case 0x07:
-        return micro_conversion_func(u8"\\a");
+        return cast_ascii<OutputChar>(u8"\\a");
     case 0x08:
-        return micro_conversion_func(u8"\\b");
+        return cast_ascii<OutputChar>(u8"\\b");
     case 0x09:
-        return micro_conversion_func(u8"\\t");
+        return cast_ascii<OutputChar>(u8"\\t");
     case 0x0A:
-        return micro_conversion_func(u8"\\n");
+        return cast_ascii<OutputChar>(u8"\\n");
     case 0x0B:
-        return micro_conversion_func(u8"\\v");
+        return cast_ascii<OutputChar>(u8"\\v");
     case 0x0C:
-        return micro_conversion_func(u8"\\f");
+        return cast_ascii<OutputChar>(u8"\\f");
     case 0x0D:
-        return micro_conversion_func(u8"\\r");
+        return cast_ascii<OutputChar>(u8"\\r");
     case 0x22:
-        return micro_conversion_func(u8"\\\"");
+        return cast_ascii<OutputChar>(u8"\\\"");
     case 0x27:
-        return micro_conversion_func(u8"\\'");
+        return cast_ascii<OutputChar>(u8"\\'");
     case 0x5C:
-        return micro_conversion_func(u8"\\\\");
+        return cast_ascii<OutputChar>(u8"\\\\");
     default:
         break;
     }
-    if (char_arg < 0x20 || (char_arg >= 0x7F && char_arg <= 0x9F))
+    constexpr auto get_arr_to_search = [&]()
     {
-        if (char_arg <= 0xFFFF)
+        if constexpr (same_as<InputChar, char>)
         {
-            u8string prefix;
-            if constexpr (same_as<char8_t, InputChar>
-                          || same_as<char, InputChar>)
-            {
-                prefix = u8"\\x";
-            }
-            else if constexpr (same_as<char16_t, InputChar>
-                               || ( wchar_is_16_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                if (char_arg <= 0xFF)
-                {
-                    prefix = u8"\\x";
-                }
-                else
-                {
-                    prefix = u8"\\u";
-                }
-            }
-            else if constexpr (same_as<char32_t, InputChar>
-                               || ( wchar_is_32_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                if (char_arg <= 0xFF)
-                {
-                    prefix = u8"\\x";
-                }
-                else if (char_arg <= 0xFFFF)
-                {
-                    prefix = u8"\\u";
-                }
-                else
-                {
-                    prefix = u8"\\U";
-                }
-            }
-            else
-            {
-            }
-            return micro_conversion_func(
-                UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-                    make_hex_from_char_with_prefix<InputChar, true, true>(
-                        static_cast<InputChar>(char_arg), prefix
-                    )
-            );
+            return array{
+                pair<char32_t, char32_t>{0x0000, 0x001F},
+                pair<char32_t, char32_t>{0x007F, 0x00FF}
+            };
         }
         else
         {
-            u8string prefix;
-            if constexpr (same_as<char8_t, InputChar>
-                          || same_as<char, InputChar>)
-            {
-                prefix = u8"\\x";
-            }
-            else if constexpr (same_as<char16_t, InputChar>
-                               || ( wchar_is_16_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                prefix = u8"\\u";
-            }
-            else if constexpr (same_as<char32_t, InputChar>
-                               || ( wchar_is_32_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                prefix = u8"\\U";
-            }
-            else
-            {
-            }
-            return micro_conversion_func(
-                UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-                    make_hex_from_char_with_prefix<char32_t, true, false>(
-                        static_cast<InputChar>(char_arg), prefix
-                    )
-            );
-        }
-    }
-    else
-    {
-        if constexpr (same_as<char, InputChar>)
-        {
-            u8string prefix;
-            if constexpr (same_as<char8_t, InputChar>
-                          || same_as<char, InputChar>)
-            {
-                prefix = u8"\\x";
-            }
-            else if constexpr (same_as<char16_t, InputChar>
-                               || ( wchar_is_16_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                prefix = u8"\\u";
-            }
-            else if constexpr (same_as<char32_t, InputChar>
-                               || ( wchar_is_32_bit
-                                    && same_as<wchar_t, InputChar> ) )
-            {
-                prefix = u8"\\U";
-            }
-            else
-            {
-            }
-            return char_arg > ascii_limit<char32_t>()
-                       ? make_optional(micro_conversion_func(
-                             UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-                                 make_hex_from_char_with_prefix<
-                                     InputChar,
-                                     true,
-                                     false>(
-                                     static_cast<InputChar>(char_arg), prefix
-                                 )
-                         ))
-                       : nullopt;
-        }
-        else
-        {
-            constexpr std::array<std::pair<char32_t, std::u8string_view>, 36>
-                special_unicode_chars = {
-                    make_pair(
-                        char32_t{0x00A0}, u8"\\xA0"
-                    ), // non-breaking space
-                    make_pair(
-                        char32_t{0x1680}, u8"\\u1680"
-                    ), // ogham space mark
-                    make_pair(
-                        char32_t{0x180E}, u8"\\u180E"
-                    ), // mongolian vowel separator
-                    make_pair(char32_t{0x2000}, u8"\\u2000"), // en quad
-                    make_pair(char32_t{0x2001}, u8"\\u2001"), // em quad
-                    make_pair(char32_t{0x2002}, u8"\\u2002"), // en space
-                    make_pair(char32_t{0x2003}, u8"\\u2003"), // em space
-                    make_pair(
-                        char32_t{0x2004}, u8"\\u2004"
-                    ), // three-per-em space
-                    make_pair(
-                        char32_t{0x2005}, u8"\\u2005"
-                    ), // four-per-em space
-                    make_pair(
-                        char32_t{0x2006}, u8"\\u2006"
-                    ), // six-per-em space
-                    make_pair(char32_t{0x2007}, u8"\\u2007"), // figure space
-                    make_pair(
-                        char32_t{0x2008}, u8"\\u2008"
-                    ), // punctuation space
-                    make_pair(char32_t{0x2009}, u8"\\u2009"), // thin space
-                    make_pair(char32_t{0x200A}, u8"\\u200A"), // hair space
-                    make_pair(
-                        char32_t{0x200B}, u8"\\u200B"
-                    ), // zero width space
-                    make_pair(
-                        char32_t{0x200C}, u8"\\u200C"
-                    ), // zero width non-joiner
-                    make_pair(
-                        char32_t{0x200D}, u8"\\u200D"
-                    ), // zero width joiner
-                    make_pair(char32_t{0x2028}, u8"\\u2028"), // line separator
-                    make_pair(
-                        char32_t{0x2029}, u8"\\u2029"
-                    ), // paragraph separator
-                    make_pair(
-                        char32_t{0x202F}, u8"\\u202F"
-                    ), // narrow no-break space
-                    make_pair(
-                        char32_t{0x205F}, u8"\\u205F"
-                    ), // medium mathematical space
-                    make_pair(char32_t{0x2060}, u8"\\u2060"), // word joiner
-                    make_pair(
-                        char32_t{0x2061}, u8"\\u2061"
-                    ), // function application
-                    make_pair(char32_t{0x2062}, u8"\\u2062"), // invisible times
-                    make_pair(
-                        char32_t{0x2063}, u8"\\u2063"
-                    ), // invisible separator
-                    make_pair(char32_t{0x2064}, u8"\\u2064"), // invisible plus
-                    make_pair(
-                        char32_t{0x2066}, u8"\\u2066"
-                    ), // left-to-right isolate
-                    make_pair(
-                        char32_t{0x2067}, u8"\\u2067"
-                    ), // right-to-left isolate
-                    make_pair(
-                        char32_t{0x2068}, u8"\\u2068"
-                    ), // first strong isolate
-                    make_pair(
-                        char32_t{0x2069}, u8"\\u2069"
-                    ), // pop directional isolate
-                    make_pair(
-                        char32_t{0x3000}, u8"\\u3000"
-                    ), // ideographic space
-                    make_pair(char32_t{0xFEFF}, u8"\\uFEFF"), // byte order mark
-                    make_pair(
-                        char32_t{0xFFF9}, u8"\\uFFF9"
-                    ), // interlinear annotation anchor
-                    make_pair(
-                        char32_t{0xFFFA}, u8"\\uFFFA"
-                    ), // interlinear annotation separator
-                    make_pair(
-                        char32_t{0xFFFB}, u8"\\uFFFB"
-                    ), // interlinear annotation terminator
-                    make_pair(
-                        char32_t{0xFFFD}, u8"\\uFFFD"
-                    ), // replacement character
-                };
-            auto it = std::ranges::lower_bound(
-                special_unicode_chars,
-                static_cast<char32_t>(char_arg),
-                {},
-                &std::pair<char32_t, u8string_view>::first
-            );
-
-            return (it != special_unicode_chars.end()
-                    && it->first == static_cast<char32_t>(char_arg))
-                       ? std::make_optional(micro_conversion_func(it->second))
-                       : std::nullopt;
-        }
-    }
-}
-
-template <typename T>
-requires is_char_type_c<T>
-constexpr std::u8string
-    represent_char_as_hex_for_printing(
-        const T char_arg
-    ) noexcept
-{
-    auto prefix_func = [&]()
-    {
-        if constexpr (sizeof(T) == 1)
-        {
-            return u8"\\x";
-        }
-        else if constexpr (sizeof(T) == 2)
-        {
-            return u8"\\u";
-        }
-        else if constexpr (sizeof(T) == 4)
-        {
-            return u8"\\U";
-        }
-        else
-        {
-            UNICODE_BRIDGE_STATIC_ASSERT(
-                T, "prefix_func undefined for this size of type"
-            );
+            return array{
+                pair<char32_t, char32_t>{0x0000, 0x001F},
+                pair<char32_t, char32_t>{0x007F, 0x00A0},
+                pair<char32_t, char32_t>{0x00AD, 0x00AD},
+                pair<char32_t, char32_t>{0x061C, 0x061C}, // arabic letter mark
+                pair<char32_t, char32_t>{0x1680, 0x1680}, // ogham space mark
+                pair<char32_t, char32_t>{
+                                         0x180E, 0x180E
+                }, // mongolian vowel separator
+                pair<char32_t, char32_t>{
+                                         0x2000, 0x200F
+                }, // en quad .. right-to-left mark
+                pair<char32_t, char32_t>{
+                                         0x2028, 0x202F
+                }, // line separator .. narrow no-break space
+                pair<char32_t, char32_t>{
+                                         0x205F, 0x205F
+                }, // medium mathematical space
+                pair<char32_t, char32_t>{
+                                         0x2060, 0x2069
+                }, // word joiner .. pop directional isolate
+                pair<char32_t, char32_t>{0x3000, 0x3000}, // ideographic space
+                pair<char32_t, char32_t>{0xFEFF, 0xFEFF}, // byte order mark
+                pair<char32_t, char32_t>{
+                                         0xFFF9, 0xFFFB
+                }, // interlinear annota anchor to terminator
+                pair<char32_t, char32_t>{0xFFFD, 0xFFFD}
+                // replacement character
+            };
         }
     };
-    return UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-        make_hex_from_char_with_prefix<T, true, false>(char_arg, prefix_func());
-}
-
-template <typename T>
-constexpr std::wstring
-    cast_unicode_string_to_wstring(
-        const T str_arg_view
-    )
-{
-    using namespace std;
-    if constexpr (sizeof(typename T::value_type) == sizeof(wchar_t))
-    {
-        return wstring(str_arg_view.begin(), str_arg_view.end());
-    }
-    else
-    {
-        UNICODE_BRIDGE_STATIC_ASSERT(
-            wstring,
-            "cast_unicode_string_to_wstring called with template parameter "
-            "T that is not equal in size to wchar_t"
-        );
-    }
-}
-
-template <typename T>
-requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::is_valid_wstring_cast_char_c<
-    typename T::value_type>
-constexpr void
-    cast_unicode_string_to_wstring_append(
-        const T       str_arg_view,
-        std::wstring& str_to_append_to_arg
-    ) noexcept
-{
-    str_to_append_to_arg.append(str_arg_view.begin(), str_arg_view.end());
+    // The array contains ranges of characters that should be printed as hex.
+    auto       arr_to_search = get_arr_to_search();
+    const auto it            = std::ranges::lower_bound(
+        arr_to_search, char_arg, {}, &std::pair<char32_t, char32_t>::second
+    );
+    // If the character is not within any of the ranges given, return nullopt.
+    return (it != std::ranges::end(arr_to_search) && char_arg >= it->first)
+               ? std::make_optional(cast_ascii<OutputChar>(
+                     make_hex_from_char<true, padding, prefix>(char_arg)
+                 ))
+               : std::nullopt;
 }
 
 UNICODE_BRIDGE_INTERNAL_NS_END
