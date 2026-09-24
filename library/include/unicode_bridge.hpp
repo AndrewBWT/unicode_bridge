@@ -2642,8 +2642,19 @@ requires is_char_type_c<char_type_of_t<ArgType>>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(ArgType str_arg) noexcept;
 
+
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    from_formatted_unicode_string(ArgType str_arg) noexcept;
+
 /*!
- * @brief Creates a formatted Unicode string from a single arbitrary character.
+ * @brief Creates a formatted Unicode string from a single arbitrary
+ character.
  *
  * It specifically has the following features:
  * - The following ASCII characters are printed as follows:
@@ -2657,13 +2668,16 @@ constexpr std::basic_string<OutputChar>
  * -- 0x27 -> \'
  * -- 0x5C -> \\
  *
- * Any character below 0x20, or above 0x7F and below 0x9F is printed as straight
+ * Any character below 0x20, or above 0x7F and below 0x9F is printed as
+ straight hex.
+ *
+ * If the input characters are ASCII, then anything abouve 7F is printed as
  hex.
  *
- * If the input characters are ASCII, then anything abouve 7F is printed as hex.
- *
- * If the input is Unicode, the following hex values are printed as hex. This is
- * because in general output, it may be hard to discern the Unicode from other
+ * If the input is Unicode, the following hex values are printed as hex.
+ This is
+ * because in general output, it may be hard to discern the Unicode from
+ other
  * types of character.
  * 0x00A0, 0x1680, 0x180E, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004, 0x2005,
  0x2006
@@ -2676,8 +2690,8 @@ constexpr std::basic_string<OutputChar>
  * All other characters are printed as-is.
  *
  * @tparam
- * @tparam InputChar The character type of the input character. It can be any
- character type.
+ * @tparam InputChar The character type of the input character. It can be
+ any character type.
  * @param char_arg The character to convert.
  * @return The character converted to Unicode.
  */
@@ -2685,6 +2699,20 @@ template <typename OutputChar, typename InputChar>
 requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(const InputChar char_arg) noexcept;
+
+template <typename OutputChar, typename InputChar>
+requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    from_formatted_unicode_string(
+        const InputChar char_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
+    const basic_string_view<InputChar> sv(char_arr, 1);
+    return from_formatted_unicode_string<OutputChar>(sv);
+}
 
 template <typename OutputChar, typename InputChar>
 requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
@@ -2955,9 +2983,9 @@ constexpr bool dependent_false = false; // workaround before CWG2518/P2593R1
 
 // ---- Internal error factory definitions
 /*!
- * @brief Type used to create basic_unicode_error errors. Used instead of having
- * basic_unicode_error have a public constructor, as it is easy to make mistakes
- * initailising variables.
+ * @brief Type used to create basic_unicode_error errors. Used instead of
+ * having basic_unicode_error have a public constructor, as it is easy to
+ * make mistakes initailising variables.
  */
 struct basic_unicode_error_factory
 {
@@ -2996,7 +3024,8 @@ public:
     /*!
      * @brief Constructor representing a UTF-32 code point that is invalid.
      * @param char32_character_arg The Unicode character in question.
-     * @param is_wchar_arg Whether the original encoding was a wchar_t or not.
+     * @param is_wchar_arg Whether the original encoding was a wchar_t or
+     * not.
      * @return basic_unicode_error representation of the error.
      */
     static constexpr basic_unicode_error
@@ -4095,11 +4124,10 @@ constexpr std::u8string
     auto     utf32_invalid = [&](const std::u8string_view codepoint_as_hex_arg)
     {
         msg.append(codepoint_as_hex_arg);
-        msg.append(
-            u8" falls outside the valid Unicode range — valid Unicode scalar "
-            u8"values must be inclusively between U+0000 and U+10FFFF, "
-            u8"excluding the surrogate range U+D800 to U+DFFF. As "
-        );
+        msg.append(u8" falls outside the valid Unicode range — valid Unicode "
+                   u8"scalar "
+                   u8"values must be inclusively between U+0000 and U+10FFFF, "
+                   u8"excluding the surrogate range U+D800 to U+DFFF. As ");
         msg.append(codepoint_as_hex_arg);
         msg.append(
             is_surrogate(_char32_character)
@@ -4168,13 +4196,12 @@ constexpr std::u8string
             msg.append(u8" bytes (");
         }
         msg.append(chars_to_hex(char_as_u8, char_as_u8.size()));
-        msg.append(
-            u8"), which is the shortest valid UTF-8 representation. The "
-            u8"UTF-8 standard requires that code points are always "
-            u8"encoded using the shortest possible sequence. As this "
-            u8"requirement is not met, the sequence does not represent "
-            u8"a valid Unicode scalar value, and the function was terminated."
-        );
+        msg.append(u8"), which is the shortest valid UTF-8 representation. The "
+                   u8"UTF-8 standard requires that code points are always "
+                   u8"encoded using the shortest possible sequence. As this "
+                   u8"requirement is not met, the sequence does not represent "
+                   u8"a valid Unicode scalar value, and the function was "
+                   u8"terminated.");
     }
     break;
     case invalid_utf32_code_point_after_utf8_conversion:
@@ -4277,9 +4304,11 @@ constexpr std::u8string
         utf8_begin_str(chars_to_hex(u8_code_points, 1), 1);
         msg.append(
             u8" was found to be an invalid leading byte. A valid leading "
-            u8"byte must be inclusively within one of the following ranges: "
+            u8"byte must be inclusively within one of the following "
+            u8"ranges: "
             u8"0x00 to 0x7F (single-byte sequence), 0xC0 to 0xDF (two-byte "
-            u8"sequence), 0xE0 to 0xEF (three-byte sequence), or 0xF0 to 0xF7 "
+            u8"sequence), 0xE0 to 0xEF (three-byte sequence), or 0xF0 to "
+            u8"0xF7 "
             u8"(four-byte sequence). As "
         );
         msg.append(make_hex_from_char<
@@ -4377,11 +4406,15 @@ constexpr std::u8string
             continuation_byte_error_table[] = {
                 {2,
                  {1, 0, 0},
-                 1, u8" form the start of a two-byte sequence. The second code "
-                 u8"unit (",                  u8") was expected to be a continuation byte, but was not — a "
-                 u8"valid continuation byte must be inclusively between 0x80 "
+                 1, u8" form the start of a two-byte sequence. The second "
+                 u8"code "
+                 u8"unit (",                  u8") was expected to be a continuation byte, but was not "
+                 u8"— a "
+                 u8"valid continuation byte must be inclusively between "
+                 u8"0x80 "
                  u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a valid Unicode scalar value, and the function "
+                 u8"represent a valid Unicode scalar value, and the "
+                 u8"function "
                  u8"was terminated."                 }, // case 0
                 {3,
                  {1, 0, 0},
@@ -4583,10 +4616,13 @@ constexpr std::u8string
         );
         msg.append(
             u8" is a low surrogate. Low surrogates must always be preceded "
-            u8"by a high surrogate (inclusively between 0xD800 and 0xDBFF) as "
+            u8"by a high surrogate (inclusively between 0xD800 and 0xDBFF) "
+            u8"as "
             u8"the second part of a surrogate pair. As this low surrogate "
-            u8"appears without a preceding high surrogate, it cannot represent "
-            u8"a valid Unicode scalar value, and the function was terminated."
+            u8"appears without a preceding high surrogate, it cannot "
+            u8"represent "
+            u8"a valid Unicode scalar value, and the function was "
+            u8"terminated."
         );
     }
     break;
@@ -5248,12 +5284,12 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         msg.append(_error.message<Arg_Type>(0, str_arg));
         break;
     case iterator_end:
-        msg.append(
-            u8"The current iterator passed to the function was equal to the "
-            u8"end iterator — "
-            u8"signifying that there were no more code units to read, and the "
-            u8"function was terminated."
-        );
+        msg.append(u8"The current iterator passed to the function was "
+                   u8"equal to the "
+                   u8"end iterator — "
+                   u8"signifying that there were no more code units to "
+                   u8"read, and the "
+                   u8"function was terminated.");
         break;
     }
     return msg;
@@ -5333,17 +5369,22 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         );
         msg.append(
             u8" were scanned backwards. No "
-            u8"valid leading byte was found — a valid UTF-8 leading byte must "
+            u8"valid leading byte was found — a valid UTF-8 leading byte "
+            u8"must "
             u8"be "
             u8"in one of the following ranges: 0x00 to 0x7F (single-byte), "
-            u8"0xC2 to 0xDF (two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 to "
-            u8"0xF7 (four-byte). As none of the four code units fall within "
+            u8"0xC2 to 0xDF (two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 "
+            u8"to "
+            u8"0xF7 (four-byte). As none of the four code units fall "
+            u8"within "
             u8"any "
-            u8"of these ranges, and the maximum number of continuation bytes "
+            u8"of these ranges, and the maximum number of continuation "
+            u8"bytes "
             u8"was "
             u8"scanned, it was determined that these code units cannot "
             u8"represent "
-            u8"a valid Unicode scalar value, and the function was terminated."
+            u8"a valid Unicode scalar value, and the function was "
+            u8"terminated."
         );
         break;
     case leading_byte_sequence_length_mismatch:
@@ -5380,13 +5421,20 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             msg.append(
                 n_continuation_found == 1
                     ? u8" continuation byte was found succeeding it. As a "
-                      u8"single-byte character cannot be part of a multi-byte "
-                      u8"sequence, these code units cannot represent a valid "
-                      u8"Unicode scalar value, and the function was terminated."
-                    : u8" continuation bytes were found succeeding it. As a "
-                      u8"single-byte character cannot be part of a multi-byte "
-                      u8"sequence, these code units cannot represent a valid "
-                      u8"Unicode scalar value, and the function was terminated."
+                      u8"single-byte character cannot be part of a "
+                      u8"multi-byte "
+                      u8"sequence, these code units cannot represent a "
+                      u8"valid "
+                      u8"Unicode scalar value, and the function was "
+                      u8"terminated."
+                    : u8" continuation bytes were found succeeding it. As "
+                      u8"a "
+                      u8"single-byte character cannot be part of a "
+                      u8"multi-byte "
+                      u8"sequence, these code units cannot represent a "
+                      u8"valid "
+                      u8"Unicode scalar value, and the function was "
+                      u8"terminated."
             );
         }
         else
@@ -5508,8 +5556,10 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
                                       : u8"They are continuation bytes, but "
         );
         msg.append(
-            u8"the beginning of the input was reached before a valid leading "
-            u8"byte was found. A valid UTF-8 leading byte must be in one of "
+            u8"the beginning of the input was reached before a valid "
+            u8"leading "
+            u8"byte was found. A valid UTF-8 leading byte must be in one "
+            u8"of "
             u8"the "
             u8"following ranges: 0x00 to 0x7F (single-byte), 0xC2 to 0xDF "
             u8"(two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 to 0xF7 "
@@ -5519,10 +5569,9 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             n_continuation_found == 1 ? u8"this code unit cannot"
                                       : u8"these code units cannot"
         );
-        msg.append(
-            u8" represent a valid Unicode scalar value, and the function was "
-            u8"terminated."
-        );
+        msg.append(u8" represent a valid Unicode scalar value, and the "
+                   u8"function was "
+                   u8"terminated.");
     }
     break;
     case low_surrogate_then_start_of_stream:
@@ -5539,12 +5588,16 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         msg.append(
             u8" is a low surrogate. Low surrogates "
             u8"must always be preceded "
-            u8"by a high surrogate (inclusively between 0xD800 and 0xDBFF) as "
+            u8"by a high surrogate (inclusively between 0xD800 and 0xDBFF) "
+            u8"as "
             u8"the second part of a surrogate pair. However, this low "
             u8"surrogate "
-            u8"was found at the start of the stream — no preceding code unit "
-            u8"exists. As it cannot be the second part of a surrogate pair, it "
-            u8"cannot represent a valid Unicode scalar value, and the function "
+            u8"was found at the start of the stream — no preceding code "
+            u8"unit "
+            u8"exists. As it cannot be the second part of a surrogate "
+            u8"pair, it "
+            u8"cannot represent a valid Unicode scalar value, and the "
+            u8"function "
             u8"was terminated."
         );
     }
@@ -5686,8 +5739,8 @@ constexpr std::optional<unicode_to_ascii_error>
     for (size_t idx{0}; string_iterator != string_iterator_end; ++idx)
     {
         const auto character{*string_iterator};
-        // Do this as quicker than finding error. Error handling runs through
-        // slower next_char32_t_and_increment_iterator.
+        // Do this as quicker than finding error. Error handling runs
+        // through slower next_char32_t_and_increment_iterator.
         if (is_valid_ascii(character))
         {
             str_inserter = character;
@@ -5697,8 +5750,9 @@ constexpr std::optional<unicode_to_ascii_error>
         else
         {
             // Gets the char32_t. There is some redundancy in using this
-            // function (there are checks for ascii in next_char32_t) however as
-            // this is not the "hot path" we don't think it really matters.
+            // function (there are checks for ascii in next_char32_t)
+            // however as this is not the "hot path" we don't think it
+            // really matters.
             const auto character_res{
                 forward_scan_for_next_char32<true, itt, CharT>(
                     string_iterator, string_iterator_end
@@ -6239,8 +6293,8 @@ constexpr std::optional<unicode_conversion_error>
                 else if (character <= char32_limit<char32_t>())
                 {
                     // Supplementary Plane to surrogate pair
-                    // Moves the character from the range 0x10000 to 0x10FFFF to
-                    // 0... 0xFFFFF.
+                    // Moves the character from the range 0x10000 to
+                    // 0x10FFFF to 0... 0xFFFFF.
                     const char32_t character_cpy{
                         character
                         - char16_offset_for_char32_conversion<char32_t>()
@@ -6850,7 +6904,6 @@ constexpr std::basic_string<OutputChar>
             }
         }
     }
-
     else
     {
         while (string_iterator != string_iterator_end)
@@ -6887,6 +6940,246 @@ constexpr std::basic_string<OutputChar>
                         str_prefix::arg_dependant>(*string_iterator)
                 );
                 ++string_iterator;
+            }
+        }
+    }
+    return return_value;
+}
+
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    from_formatted_unicode_string(
+        ArgType str_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    basic_string<OutputChar> return_value;
+    using Underlying = char_underlying_type_t<OutputChar>;
+    using InputChar  = char_type_of_t<ArgType>;
+    auto str_as_sv   = basic_string<InputChar>(str_arg);
+    auto return_value_inserter{std::back_inserter(return_value)};
+    auto string_iterator{std::begin(str_as_sv)};
+    auto string_iterator_end{std::end(str_as_sv)};
+    // Move through input.
+    for (; string_iterator != string_iterator_end;)
+    {
+        // Grab next char32_t.
+        const optional<char32_t> character_opt{
+            next_char32_and_increment_iterator_no_error<decltype(string_iterator
+            )>(string_iterator, string_iterator_end)
+        };
+        if (not character_opt.has_value())
+        {
+            return nullopt;
+        }
+        auto& char_var = character_opt.value();
+        if (char_var != u8'\\')
+        {
+            if constexpr (same_as<OutputChar, char>)
+            {
+                if (char_var > ascii_limit<char32_t>())
+                {
+                    return nullopt;
+                }
+                append_ascii(return_value, char_var);
+            }
+            else
+            {
+                unicode_conversion_append_no_error(char_var, return_value);
+            }
+        }
+        else
+        {
+            const optional<char32_t> next_char_opt{
+                next_char32_and_increment_iterator_no_error<
+                    decltype(string_iterator)>(
+                    string_iterator, string_iterator_end
+                )
+            };
+            if (not next_char_opt.has_value())
+            {
+                return nullopt;
+            }
+            auto& next_char       = next_char_opt.value();
+            using arr_contents    = pair<char8_t, char8_t>;
+            arr_contents values[] = {
+                arr_contents(u8'0', u8'\0'),
+                arr_contents{u8'a',  u8'\a'},
+                arr_contents{u8'b',  u8'\b'},
+                arr_contents{u8't',  u8'\t'},
+                arr_contents{u8'n',  u8'\n'},
+                arr_contents{u8'v',  u8'\v'},
+                arr_contents{u8'f',  u8'\f'},
+                arr_contents{u8'r',  u8'\r'},
+                arr_contents{u8'"',  u8'"' },
+                arr_contents{u8'\'', u8'\''},
+                arr_contents{u8'\\', u8'\\'},
+            };
+            // If it matches any of the special characters, that's what
+            // is outputted.
+            const auto it
+                = ranges::find(values, next_char, &arr_contents::first);
+            if (it != ranges::end(values))
+            {
+                // All special chars are ASCII.
+                append_ascii(return_value, it->second);
+            }
+            else
+            {
+                // Getting ready to read some hex. First check that the
+                // letter is correct for the character type, and set how
+                // many hex chars to read.
+                size_t n_chars_to_read;
+                if constexpr (same_as<OutputChar, char>)
+                {
+                    if (next_char != U'x')
+                    {
+                        return nullopt;
+                    }
+                    n_chars_to_read = 2;
+                }
+                else
+                {
+                    switch (next_char)
+                    {
+                    case U'x':
+                        n_chars_to_read = 2;
+                        break;
+                    case U'u':
+                        n_chars_to_read = 4;
+                        break;
+                    case U'U':
+                        n_chars_to_read = 8;
+                        break;
+                    default:
+                        return nullopt;
+                    }
+                }
+                string   chars_to_read(n_chars_to_read, '\0');
+                uint32_t underlying_uint;
+                for (size_t idx{0}; idx < n_chars_to_read; ++idx)
+                {
+                    // Read the nest n_chars_to_read chars.
+                    const optional<char32_t> next_char_opt{
+                        next_char32_and_increment_iterator_no_error<
+                            decltype(string_iterator)>(
+                            string_iterator, string_iterator_end
+                        )
+                    };
+                    if (not next_char_opt.has_value())
+                    {
+                        return nullopt;
+                    }
+                    auto& next_char{next_char_opt.value()};
+                    if (next_char <= ascii_limit<char32_t>())
+                    {
+                        chars_to_read[idx] = cast_ascii<char>(next_char);
+                    }
+                }
+                // Read and convert the chars to hex.
+                auto [ptr, ec] = std::from_chars(
+                    chars_to_read.data(),
+                    chars_to_read.data() + n_chars_to_read,
+                    underlying_uint,
+                    16
+                );
+                if (ec != std::errc()
+                    || ptr != chars_to_read.data() + n_chars_to_read)
+                {
+                    return nullopt;
+                }
+                // if (is_invalid_char32(encoded_char))
+                // {
+                //    return nullopt;
+                // }
+                char32_t encoded_char = static_cast<char32_t>(underlying_uint);
+                if (next_char == U'x')
+                {
+                    // Raw code unit: pushed as-is, no encoding.
+                    return_value.push_back(static_cast<OutputChar>(encoded_char));
+                    continue;
+                }
+                if constexpr (same_as<OutputChar, char>)
+                {
+                    if (encoded_char > static_cast<char32_t>(
+                            std::numeric_limits<char8_t>::max()
+                        ))
+                    {
+                        return nullopt;
+                    }
+                    append_ascii(return_value, encoded_char);
+                }
+                else
+                {
+                    if constexpr (sizeof(OutputChar) == 4)
+                    {
+                        return_value.push_back(encoded_char);
+                    }
+                    else if constexpr (sizeof(OutputChar) == 2)
+                    {
+                        if (encoded_char <= 0xFFFF)
+                        {
+                            return_value.push_back(static_cast<OutputChar>(encoded_char)
+                            ); // lone surrogates pass through
+                        }
+                        else
+                        {
+                            encoded_char -= 0x1'0000;
+                            return_value.push_back(static_cast<OutputChar>(
+                                0xD800 + (encoded_char >> 10)
+                            ));
+                            return_value.push_back(static_cast<OutputChar>(
+                                0xDC00 + (encoded_char & 0x3FF)
+                            ));
+                        }
+                    }
+                    else
+                    {
+                        auto cont = [](char32_t char32_arg)
+                        {
+                            return static_cast<OutputChar>(
+                                0x80 | (char32_arg & 0x3F)
+                            );
+                        };
+                        if (encoded_char < 0x80)
+                        {
+                            return_value.push_back(static_cast<OutputChar>(encoded_char));
+                        }
+                        else if (encoded_char < 0x800)
+                        {
+                            return_value.push_back(
+                                static_cast<OutputChar>(0xC0 | (encoded_char >> 6))
+                            );
+                            return_value.push_back(cont(encoded_char));
+                        }
+                        else if (encoded_char < 0x1'0000)
+                        {
+                            return_value.push_back(
+                                static_cast<OutputChar>(0xE0 | (encoded_char >> 12))
+                            );
+                            return_value.push_back(cont(encoded_char >> 6));
+                            return_value.push_back(cont(encoded_char));
+                        }
+                        else
+                        {
+                            return_value.push_back(
+                                static_cast<OutputChar>(0xF0 | (encoded_char >> 18))
+                            );
+                            return_value.push_back(cont(encoded_char >> 12));
+                            return_value.push_back(cont(encoded_char >> 6));
+                            return_value.push_back(cont(encoded_char));
+                        }
+                    }
+                 //   unicode_conversion_append_no_error(
+                //        encoded_char, return_value
+                //    );
+                }
             }
         }
     }
@@ -7496,11 +7789,11 @@ constexpr std::size_t
         else if (char_arg <= two_char8_limit<char32_t>())
         {
             // 2-byte UTF-8.
-            // Isolate first 6 bits by rshift, then use binary or to set the
-            // other bits.
+            // Isolate first 6 bits by rshift, then use binary or to set
+            // the other bits.
             inserter_arg = static_cast<char8_t>(0b1100'0000 | (char_arg >> 6));
-            // Isolate first 6 bits by binary and, then use binary or to set the
-            // other bit.
+            // Isolate first 6 bits by binary and, then use binary or to
+            // set the other bit.
             inserter_arg = static_cast<char8_t>(
                 first_bit_set | (char_arg & final_six_bits_set)
             );
@@ -7728,7 +8021,8 @@ constexpr std::conditional_t<
                 ++n_continuation;
                 if (n_continuation > 3)
                 {
-                    // Scanned 4 continuation bytes with no leading byte found
+                    // Scanned 4 continuation bytes with no leading byte
+                    // found
                     if constexpr (Return_Reason)
                     {
                         std::array<char8_t, 4> code_units
@@ -7789,8 +8083,8 @@ constexpr std::conditional_t<
                 const size_t sequence_length = n_continuation + 1;
                 char32_t     code_point
                     = leading_byte_data_bits(*scan, sequence_length);
-                // Accumulate continuation bytes - validity already checked by
-                // caller
+                // Accumulate continuation bytes - validity already
+                // checked by caller
                 T local{scan};
                 for (size_t idx{0}; idx < sequence_length - 1; ++idx)
                 {
@@ -7809,7 +8103,8 @@ constexpr std::conditional_t<
             }
             else
             {
-                // Non-continuation, non-leading byte encountered mid-scan
+                // Non-continuation, non-leading byte encountered
+                // mid-scan
                 if constexpr (Return_Reason)
                 {
                     std::array<char8_t, 4> code_units = {
@@ -7860,7 +8155,8 @@ constexpr std::conditional_t<
     {
         UNICODE_BRIDGE_STATIC_ASSERT(
             CharT,
-            "prev_char32_internal_with_iterator_checking invalid for this "
+            "prev_char32_internal_with_iterator_checking invalid for "
+            "this "
             "character type"
         );
     }
@@ -8312,8 +8608,8 @@ constexpr std::optional<std::basic_string<OutputChar>>
     constexpr auto prefix  = same_as<char, InputChar>
                                  ? str_prefix::slash_x
                                  : str_prefix::arg_dependant;
-    // These characters have a set return value, which we conver to the correct
-    // type.
+    // These characters have a set return value, which we conver to the
+    // correct type.
     switch (char_arg)
     {
     case 0x00:
@@ -8383,17 +8679,19 @@ constexpr std::optional<std::basic_string<OutputChar>>
             };
         }
     };
-    // The array contains ranges of characters that should be printed as hex.
+    // The array contains ranges of characters that should be printed as
+    // hex.
     auto       arr_to_search = get_arr_to_search();
-    const auto it            = std::ranges::lower_bound(
-        arr_to_search, char_arg, {}, &std::pair<char32_t, char32_t>::second
+    const auto it            = ranges::lower_bound(
+        arr_to_search, char_arg, {}, &pair<char32_t, char32_t>::second
     );
-    // If the character is not within any of the ranges given, return nullopt.
-    return (it != std::ranges::end(arr_to_search) && char_arg >= it->first)
-               ? std::make_optional(cast_ascii<OutputChar>(
+    // If the character is not within any of the ranges given, return
+    // nullopt.
+    return (it != ranges::end(arr_to_search) && char_arg >= it->first)
+               ? make_optional(cast_ascii<OutputChar>(
                      make_hex_from_char<true, padding, prefix>(char_arg)
                  ))
-               : std::nullopt;
+               : nullopt;
 }
 
 UNICODE_BRIDGE_INTERNAL_NS_END

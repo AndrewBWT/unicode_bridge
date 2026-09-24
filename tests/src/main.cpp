@@ -5056,6 +5056,27 @@ inline void
             REQUIRE(result3 == u32_output);
             auto result4 = to_formatted_unicode_string<wchar_t>(input_arg);
             REQUIRE(result4 == ws_output);
+            auto test_from_formatted = [&]<typename U>(U test_arg)
+            {
+                auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                if (result_var.has_value())
+                {
+                    if (not (str == result_var.value()))
+                    {
+                        auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                    }
+                    REQUIRE(str == result_var.value());
+                }
+                else
+                {
+                    auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                    FAIL();
+                }
+            };
+            test_from_formatted(output_arg);
+            test_from_formatted(u16_output);
+            test_from_formatted(u32_output);
+            test_from_formatted(ws_output);
         };
         run_all_string_types(test_func, str);
     }
