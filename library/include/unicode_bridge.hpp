@@ -3795,12 +3795,6 @@ template <
 requires is_char_type_c<InputChar>
 constexpr std::optional<std::u8string>
     special_char_as_string(const char32_t char_arg) noexcept;
-template <typename CharT>
-concept is_valid_wstring_cast_char_c
-    = std::same_as<CharT, wchar_t>
-      || (std::same_as<CharT, char16_t> && wchar_is_16_bit)
-      || (std::same_as<CharT, char32_t> && wchar_is_32_bit);
-
 template <typename T>
 constexpr char32_t
     decode_surrogate_pair(
