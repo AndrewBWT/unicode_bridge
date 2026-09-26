@@ -5045,6 +5045,7 @@ inline void
                     = to_formatted_unicode_string<char8_t>(input_arg);
             }
             REQUIRE(result1 == output_arg);
+
             auto result2 = to_formatted_unicode_string<char16_t>(input_arg);
             if (result2 != u16_output)
             {

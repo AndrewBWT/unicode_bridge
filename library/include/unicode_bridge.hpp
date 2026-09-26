@@ -6,6 +6,13 @@
 #include <ostream>
 #include <string>
 #include <type_traits>
+#include <iterator>
+#include <charconv>
+#include <variant>
+#include <tuple>
+#include <limits>
+#include <utility>
+#include <cstdint>
 
 // ---- Macros ----
 
@@ -1498,91 +1505,6 @@ public:
 };
 
 template <typename CharT>
-requires is_char_type_c<CharT>
-struct abstract_sink_t
-{
-    using value_type = CharT;
-    virtual void
-        put(CharT char_arg) noexcept
-        = 0;
-    virtual void
-        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
-            noexcept
-        = 0;
-
-    template <typename InputCharT>
-        requires char_convertible_to_c<InputCharT, CharT>
-    && (!std::same_as<InputCharT, CharT>)
-        void put(InputCharT char_arg) noexcept
-    {
-        put(static_cast<CharT>(char_arg));
-    }
-
-    template <typename InputCharT>
-        requires char_convertible_to_c<InputCharT, CharT>
-    && (!std::same_as<InputCharT, CharT>)
-        void write(const InputCharT* ptr_arg, std::size_t size_arg) noexcept
-    {
-        write(cast_char_ptr<CharT>(ptr_arg), size_arg);
-    }
-
-    template <typename InputCharT = CharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    inline void
-        write(
-            std::basic_string_view<InputCharT> str_arg
-        ) noexcept
-    {
-        write(str_arg.data(), str_arg.size());
-    }
-
-    template <typename InputCharT = CharT>
-    requires char_convertible_to_c<InputCharT, CharT>
-    inline void
-        write(
-            const InputCharT* char_star_arg
-        ) noexcept
-    {
-        using namespace std;
-        write(basic_string_view<InputCharT>(char_star_arg));
-    }
-
-    virtual ~abstract_sink_t() = default;
-};
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-struct string_sink : public abstract_sink_t<CharT>
-{
-    std::basic_string<CharT>& _str;
-    using abstract_sink_t<CharT>::write;
-    using abstract_sink_t<CharT>::put;
-    explicit string_sink(std::basic_string<CharT>& str_arg) noexcept;
-    void
-        put(CharT char_arg) noexcept;
-
-    void
-        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
-            noexcept;
-};
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-struct ostream_sink : public abstract_sink_t<CharT>
-{
-    std::basic_ostream<CharT, std::char_traits<CharT>>& _stream;
-    using abstract_sink_t<CharT>::write;
-    using abstract_sink_t<CharT>::put;
-    explicit ostream_sink(
-        std::basic_ostream<CharT, std::char_traits<CharT>>& stream_arg
-    ) noexcept;
-    void
-        put(CharT char_arg) noexcept;
-    void
-        write(const CharT* char_star_arg, std::size_t n_chars_to_append_arg)
-            noexcept;
-};
-template <typename CharT>
 requires char_type_is_unicode_c<CharT>
 struct unicode_print;
 
@@ -1630,10 +1552,11 @@ struct unicode_print
 {
 private:
     std::basic_string_view<CharT> _str;
-    template <typename SinkCharT>
-    requires is_char_type_c<SinkCharT>
-    constexpr void
-        stream_impl(abstract_sink_t<SinkCharT>& sink_arg) const;
+    template <typename OutChar, typename Out>
+    requires (std::same_as<OutChar, char> || std::same_as<OutChar, wchar_t>)
+             && std::output_iterator<Out, OutChar>
+    constexpr Out
+        write_to(Out out_arg) const;
 public:
     constexpr explicit unicode_print(const std::basic_string_view<CharT> str_arg
     ) noexcept;
@@ -3600,12 +3523,18 @@ template <typename T>
 requires is_wchar_and_32_bit_c<T> || std::same_as<T, char32_t>
 constexpr bool
     is_invalid_char32(const T char_arg) noexcept;
-template <typename CharT, typename CharU>
+template <typename CharU>
 constexpr std::size_t
     add_char_to_unicode_string(
-        const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
+        const char32_t            char_arg,
+        std::basic_string<CharU>& str_arg
     ) noexcept;
+
+template <typename OutChar, typename Out>
+requires is_char_type_c<OutChar> && std::output_iterator<Out, OutChar>
+constexpr Out
+    encode_char32(const char32_t char_arg, Out out_arg) noexcept;
+
 template <bool Return_Reason, typename T, typename Original_Value_Type>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Value_Type>
@@ -3693,7 +3622,7 @@ constexpr std::conditional_t<
         const T iterator_arg,
         const T iterator_begin_arg
     ) noexcept;
-template <bool Return_Reason, typename T, typename Original_Value_Type>
+template <bool Return_Reason, typename Original_Value_Type, typename T>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Value_Type>
 constexpr std::conditional_t<
@@ -3859,8 +3788,12 @@ constexpr bool is_high_surrogate(const T char_arg) noexcept;
 template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 2)
 constexpr bool is_low_surrogate(const T char_arg) noexcept;
-template <typename InputChar, typename OutputChar>
-constexpr std::optional<std::basic_string<OutputChar>>
+template <
+    typename InputChar,
+    hex_padding Hex_Padding = hex_padding::value_based,
+    str_prefix  Str_Prefix  = str_prefix::arg_dependant>
+requires is_char_type_c<InputChar>
+constexpr std::optional<std::u8string>
     special_char_as_string(const char32_t char_arg) noexcept;
 template <typename CharT>
 concept is_valid_wstring_cast_char_c
@@ -4174,8 +4107,8 @@ constexpr std::u8string
             true,
             hex_padding::min_four,
             str_prefix::unicode_plus>(_char32_character);
-        auto char_as_u8
-            = unicode_conversion_with_exception<char8_t>(_char32_character);
+        u8string char_as_u8;
+        add_char_to_unicode_string(_char32_character, char_as_u8);
         utf8_begin_str(
             chars_to_hex(_u8_code_points, _auxillery_data), _auxillery_data
         );
@@ -4755,240 +4688,79 @@ constexpr const Error_Type&
 }
 
 template <typename CharT>
-requires is_char_type_c<CharT>
-inline string_sink<CharT>::string_sink(
-    std::basic_string<CharT>& str_arg
-) noexcept
-    : _str(str_arg)
-{}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-inline void
-    string_sink<CharT>::put(
-        CharT char_arg
-    ) noexcept
-{
-    _str.push_back(char_arg);
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-inline void
-    string_sink<CharT>::write(
-        const CharT* char_star_arg,
-        std::size_t  n_chars_to_append_arg
-    ) noexcept
-{
-    _str.append(char_star_arg, n_chars_to_append_arg);
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-inline ostream_sink<CharT>::ostream_sink(
-    std::basic_ostream<CharT, std::char_traits<CharT>>& stream_arg
-) noexcept
-    : _stream(stream_arg)
-{}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-inline void
-    ostream_sink<CharT>::put(
-        CharT char_arg
-    ) noexcept
-{
-    _stream.put(char_arg);
-}
-
-template <typename CharT>
-requires is_char_type_c<CharT>
-inline void
-    ostream_sink<CharT>::write(
-        const CharT* char_star_arg,
-        std::size_t  n_chars_to_append_arg
-    ) noexcept
-{
-    _stream.write(
-        char_star_arg, static_cast<std::streamsize>(n_chars_to_append_arg)
-    );
-}
-
-template <typename CharT>
 requires char_type_is_unicode_c<CharT>
-template <typename SinkCharT>
-requires is_char_type_c<SinkCharT>
-constexpr void
-    unicode_print<CharT>::stream_impl(
-        abstract_sink_t<SinkCharT>& sink_arg
+template <typename OutChar, typename Out>
+requires (std::same_as<OutChar, char> || std::same_as<OutChar, wchar_t>)
+         && std::output_iterator<Out, OutChar>
+constexpr Out
+    unicode_print<CharT>::write_to(
+        Out out_arg
     ) const
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    auto char32_to_char_stream = [&](const char32_t char_arg)
+    auto emit = [&](char32_t cp)
     {
-        if (char_arg > 0x10'FFFF)
+        if (cp > char32_limit<char32_t>())
         {
-            sink_arg.write(u8"\uFFFD");
+            cp = U'\uFFFD';
         }
-        else if (char_arg <= 0x7F)
-        {
-            sink_arg.put(static_cast<char>(char_arg));
-        }
-        else if (char_arg <= 0x7FF)
-        {
-            sink_arg.put(static_cast<char>(0xC0 | (char_arg >> 6)));
-            sink_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
-        }
-        else if (char_arg <= 0xFFFF)
-        {
-            sink_arg.put(static_cast<char>(0xE0 | (char_arg >> 12)));
-            sink_arg.put(static_cast<char>(0x80 | ((char_arg >> 6) & 0x3F)));
-            sink_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
-        }
-        else
-        {
-            sink_arg.put(static_cast<char>(0xF0 | (char_arg >> 18)));
-            sink_arg.put(static_cast<char>(0x80 | ((char_arg >> 12) & 0x3F)));
-            sink_arg.put(static_cast<char>(0x80 | ((char_arg >> 6) & 0x3F)));
-            sink_arg.put(static_cast<char>(0x80 | (char_arg & 0x3F)));
-        }
+        out_arg = encode_char32<OutChar>(cp, out_arg);
     };
-    auto stream_u16 = [&](const auto str_arg)
+
+    constexpr bool same_encoding = same_as<OutChar, char>
+                                       ? same_as<CharT, char8_t>
+                                       : sizeof(CharT) == sizeof(OutChar);
+    if constexpr (same_encoding)
     {
-        auto       it  = str_arg.begin();
-        const auto end = str_arg.end();
-        while (it != end)
+        return ranges::transform(
+                   _str,
+                   out_arg,
+                   [](const CharT c)
+                   {
+                       return static_cast<OutChar>(c);
+                   }
+        ).out;
+    }
+    else if constexpr (sizeof(CharT) == 1)
+    {
+        for (auto it = _str.begin(), end = _str.end(); it != end;)
         {
-            const char16_t unit = *it++;
-            if (unit >= 0xD800 && unit <= 0xDBFF)
+            if (auto cp = next_char32_and_increment_iterator_no_error(it, end))
             {
-                // High surrogate -- look for following low surrogate
-                if (it != end)
-                {
-                    const char16_t next = *it;
-                    if (next >= 0xDC00 && next <= 0xDFFF)
-                    {
-                        // Valid pair -- decode to char32_t and encode as
-                        // UTF-8
-                        const char32_t cp
-                            = 0x1'0000
-                              + ((static_cast<char32_t>(unit) - 0xD800) << 10)
-                              + (static_cast<char32_t>(next) - 0xDC00);
-                        char32_to_char_stream(cp);
-                        ++it;
-                        continue;
-                    }
-                }
-                // Lone high surrogate -- encode mechanically
-                char32_to_char_stream(static_cast<char32_t>(unit));
+                emit(*cp);
             }
             else
             {
-                // BMP character or lone low surrogate -- encode
-                // mechanically
-                char32_to_char_stream(static_cast<char32_t>(unit));
+                emit(U'\uFFFD');
+                ++it; // the decoder doesn't advance on failure
             }
         }
-    };
-    auto stream_u32 = [&](const auto str_arg)
-    {
-        for (auto& character : str_arg)
-        {
-            char32_to_char_stream(character);
-        }
-    };
-    if constexpr (same_as<char16_t, CharT>)
-    {
-        if constexpr (same_as<SinkCharT, wchar_t>
-                      && is_wchar_and_16_bit_c<wchar_t>)
-        {
-            sink_arg.write(_str);
-        }
-        else
-        {
-            stream_u16(_str);
-        }
     }
-    else if constexpr (is_wchar_and_16_bit_c<CharT>)
+    else if constexpr (sizeof(CharT) == 2)
     {
-        if constexpr (same_as<SinkCharT, wchar_t>)
+        for (auto it = _str.begin(), end = _str.end(); it != end;)
         {
-            sink_arg.write(_str);
-        }
-        else
-        {
-            stream_u16(cast_string_view<char16_t>(_str));
-        }
-    }
-    else if constexpr (same_as<char32_t, CharT>)
-    {
-        if constexpr (same_as<SinkCharT, wchar_t>
-                      && is_wchar_and_32_bit_c<wchar_t>)
-        {
-            sink_arg.write(_str);
-        }
-        else
-        {
-            stream_u32(_str);
-        }
-    }
-    else if constexpr (is_wchar_and_32_bit_c<CharT>)
-    {
-        if constexpr (same_as<SinkCharT, wchar_t>)
-        {
-            sink_arg.write(_str);
-        }
-        else
-        {
-            stream_u32(cast_string_view<char32_t>(_str));
-        }
-    }
-    else if constexpr (same_as<char8_t, CharT>)
-    {
-        if constexpr (same_as<SinkCharT, char>)
-        {
-            sink_arg.write(_str);
-        }
-        else
-        {
-            auto it  = _str.begin();
-            auto end = _str.end();
-            while (it != end)
+            const char16_t unit = static_cast<char16_t>(*it++);
+            if (is_high_surrogate(unit) && it != end
+                && is_low_surrogate(static_cast<char16_t>(*it)))
             {
-                const char32_t cp
-                    = next_char32_and_increment_iterator_no_error(it, end)
-                          .value_or(U'\uFFFD');
-                if constexpr (is_wchar_and_32_bit_c<SinkCharT>)
-                {
-                    sink_arg.put(static_cast<wchar_t>(cp));
-                }
-                else if constexpr (is_wchar_and_16_bit_c<SinkCharT>)
-                {
-                    if (cp
-                        <= single_char16_limit_and_three_char8_limit<char32_t>(
-                        ))
-                    {
-                        sink_arg.put(static_cast<wchar_t>(cp));
-                    }
-                    else
-                    {
-                        const char32_t adjusted
-                            = cp
-                              - char16_offset_for_char32_conversion<char32_t>();
-                        sink_arg.put(static_cast<wchar_t>(
-                            (adjusted >> 10)
-                            + high_surrogate_lower_value<char32_t>()
-                        ));
-                        sink_arg.put(static_cast<wchar_t>(
-                            (adjusted & 0b0011'1111'1111)
-                            + low_surrogate_lower_value<char32_t>()
-                        ));
-                    }
-                }
+                emit(decode_surrogate_pair(unit, static_cast<char16_t>(*it++)));
+            }
+            else
+            {
+                emit(unit); // BMP character or lone surrogate
             }
         }
     }
+    else
+    {
+        for (const CharT c : _str)
+        {
+            emit(static_cast<char32_t>(c));
+        }
+    }
+    return out_arg;
 }
 
 template <typename CharT>
@@ -5004,9 +4776,8 @@ requires char_type_is_unicode_c<CharT>
 constexpr std::string
     unicode_print<CharT>::str() const
 {
-    std::string       rv;
-    string_sink<char> sink{rv};
-    stream_impl(sink);
+    std::string rv;
+    write_to<char>(std::back_inserter(rv));
     return rv;
 }
 
@@ -5018,8 +4789,13 @@ inline std::ostream&
         const unicode_print<CharT>& u_print_arg
     )
 {
-    ostream_sink<char> sink{ostream_arg};
-    u_print_arg.stream_impl(sink);
+    const auto iterator_var = u_print_arg.template write_to<char>(
+        std::ostreambuf_iterator<char>(ostream_arg)
+    );
+    if (iterator_var.failed())
+    {
+        ostream_arg.setstate(std::ios_base::badbit);
+    }
     return ostream_arg;
 }
 
@@ -5134,9 +4910,8 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
     auto&    basic_error_data{
         _error._forward_scan_unicode_error._basic_unicode_error
     };
-    auto has_special_encoding = special_char_as_string<char32_t, char32_t>(
-        basic_error_data._char32_character
-    );
+    auto has_special_encoding
+        = special_char_as_string<char32_t>(basic_error_data._char32_character);
     auto print_func = [&]()
     {
         msg.append(u8" encode");
@@ -5731,11 +5506,10 @@ constexpr std::optional<unicode_to_ascii_error>
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = char_type_of_t<ArgType>;
     basic_string_view<CharT> sv(str_arg);
-    using itt              = typename basic_string_view<CharT>::const_iterator;
-    itt    string_iterator = sv.begin();
-    itt    string_iterator_end = sv.end();
-    auto   str_inserter(back_inserter(str_to_append_to_arg));
-    size_t chars_written{0};
+    auto                     string_iterator     = sv.begin();
+    auto                     string_iterator_end = sv.end();
+    auto                     str_inserter(back_inserter(str_to_append_to_arg));
+    size_t                   chars_written{0};
     for (size_t idx{0}; string_iterator != string_iterator_end; ++idx)
     {
         const auto character{*string_iterator};
@@ -5753,11 +5527,9 @@ constexpr std::optional<unicode_to_ascii_error>
             // function (there are checks for ascii in next_char32_t)
             // however as this is not the "hot path" we don't think it
             // really matters.
-            const auto character_res{
-                forward_scan_for_next_char32<true, itt, CharT>(
-                    string_iterator, string_iterator_end
-                )
-            };
+            const auto character_res{forward_scan_for_next_char32<true, CharT>(
+                string_iterator, string_iterator_end
+            )};
             if (character_res.has_value())
             {
                 if constexpr (same_as<CharT, char8_t>)
@@ -5846,7 +5618,7 @@ constexpr std::optional<std::string>
     auto   result = convert_unicode_to_ascii_append(str_arg, output_str);
     if (result.has_value())
     {
-        return std::nullopt;
+        return nullopt;
     }
     else
     {
@@ -5868,14 +5640,9 @@ constexpr std::optional<std::size_t>
     using namespace std;
     auto result
         = convert_unicode_to_ascii_append(str_arg, str_to_append_to_arg);
-    if (result.has_value())
-    {
-        return make_optional(result.value().error().partial_output_size());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    return result.has_value()
+               ? make_optional(result.value().error().partial_output_size())
+               : nullopt;
 }
 
 template <typename InputChar>
@@ -6256,68 +6023,22 @@ constexpr std::optional<unicode_conversion_error>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar    = char_type_of_t<ArgType>;
-    auto   sv          = basic_string_view<InputChar>(str_arg);
-    auto   rv          = std::back_inserter(output_arg);
-    auto   begin_str   = std::begin(sv);
-    auto   end_str     = std::end(sv);
-    auto   current_itt = begin_str;
-    size_t chars_written{0};
+    using InputChar = char_type_of_t<ArgType>;
+    basic_string_view<InputChar> sv(str_arg);
+    auto                         begin_str     = std::begin(sv);
+    auto                         end_str       = std::end(sv);
+    auto                         current_itt   = begin_str;
+    size_t                       chars_written = 0;
     while (current_itt != end_str)
     {
-        auto next_char32 = forward_scan_for_next_char32<
-            true,
-            decltype(current_itt),
-            InputChar>(current_itt, end_str);
+        auto next_char32 = forward_scan_for_next_char32<true, InputChar>(
+            current_itt, end_str
+        );
         if (next_char32.has_value())
         {
             current_itt    += next_char32.value().second;
             auto character  = next_char32.value().first;
-            if constexpr (std::same_as<OutputChar, char32_t>
-                          || is_wchar_and_32_bit_c<OutputChar>)
-            {
-                output_arg.push_back(static_cast<OutputChar>(character));
-                ++chars_written;
-            }
-            else if constexpr (std::same_as<OutputChar, char16_t>
-                               || is_wchar_and_16_bit_c<OutputChar>)
-            {
-                // Encode as UTF-16
-                if (character
-                    <= single_char16_limit_and_three_char8_limit<char32_t>())
-                {
-                    // BMP (Basic Multilingual Plane)
-                    rv = static_cast<OutputChar>(character);
-                    ++chars_written;
-                }
-                else if (character <= char32_limit<char32_t>())
-                {
-                    // Supplementary Plane to surrogate pair
-                    // Moves the character from the range 0x10000 to
-                    // 0x10FFFF to 0... 0xFFFFF.
-                    const char32_t character_cpy{
-                        character
-                        - char16_offset_for_char32_conversion<char32_t>()
-                    };
-                    rv = static_cast<OutputChar>(
-                        (character_cpy >> 10)
-                        + high_surrogate_lower_value<char32_t>()
-                    );
-                    rv = static_cast<OutputChar>(
-                        (character_cpy & 0b0011'1111'1111)
-                        + low_surrogate_lower_value<char32_t>()
-                    );
-                    chars_written += 2;
-                }
-                else
-                {
-                    std::unreachable();
-                }
-            }
-            else if constexpr (std::same_as<OutputChar, char8_t>)
-            {
-                chars_written += add_char_to_unicode_string(character, rv);
-            }
+            chars_written  += add_char_to_unicode_string(character, output_arg);
         }
         else
         {
@@ -6532,10 +6253,9 @@ constexpr bool
         for (auto str_iterator{std::begin(sv)};
              str_iterator != str_iterator_end;)
         {
-            auto next_char_result{forward_scan_for_next_char32<
-                true,
-                decltype(str_iterator),
-                char8_t>(str_iterator, str_iterator_end)};
+            auto next_char_result{forward_scan_for_next_char32<true, char8_t>(
+                str_iterator, str_iterator_end
+            )};
             if (next_char_result.has_value())
             {
                 auto& [character, iterator_offset]{next_char_result.value()};
@@ -6872,75 +6592,65 @@ constexpr std::basic_string<OutputChar>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar = char_type_of_t<ArgType>;
-    basic_string<OutputChar> return_value{};
-    auto return_value_inserter{std::back_inserter(return_value)};
-    auto sv = basic_string_view<InputChar>(str_arg);
-    auto string_iterator{std::begin(sv)};
-    auto string_iterator_end{std::end(sv)};
-    auto get_non_printable_char_as_hex_string
-        = []<typename CharT>(const CharT char_arg
-          ) -> optional<basic_string<OutputChar>>
+    using InputChar                            = char_type_of_t<ArgType>;
+    constexpr auto                     padding = same_as<char, InputChar>
+                                                     ? hex_padding::exactly_two
+                                                     : hex_padding::value_based;
+    constexpr auto                     prefix  = same_as<char, InputChar>
+                                                     ? str_prefix::slash_x
+                                                     : str_prefix::arg_dependant;
+    const basic_string_view<InputChar> sv(str_arg);
+    basic_string<OutputChar>           return_value{};
+
+    auto                               append_escaped = [&](const auto char_arg)
     {
-        const char32_t char_var = static_cast<char32_t>(
-            static_cast<char_underlying_type_t<CharT>>(char_arg)
+        append_ascii(
+            return_value, make_hex_from_char<true, padding, prefix>(char_arg)
         );
-        return special_char_as_string<InputChar, OutputChar>(char_var);
     };
-    if constexpr (same_as<char, InputChar>)
+    auto append_char = [&](const char32_t char_arg)
     {
-        for (; string_iterator != string_iterator_end; ++string_iterator)
+        if (auto special_char
+            = special_char_as_string<InputChar, padding, prefix>(char_arg))
         {
-            const char character{*string_iterator};
-            if (auto non_printable_char
-                = get_non_printable_char_as_hex_string(character);
-                non_printable_char.has_value())
+            append_ascii(return_value, *special_char);
+            return;
+        }
+        if constexpr (same_as<OutputChar, char>)
+        {
+            if (char_arg > ascii_limit<char32_t>())
             {
-                return_value.append(non_printable_char.value());
+                append_escaped(char_arg);
             }
             else
             {
-                return_value.push_back(static_cast<OutputChar>(character));
+                append_ascii(return_value, char_arg);
             }
         }
-    }
-    else
-    {
-        while (string_iterator != string_iterator_end)
+        else
         {
-            const optional<char32_t> character_opt{
-                next_char32_and_increment_iterator_no_error<
-                    decltype(string_iterator)>(
-                    string_iterator, string_iterator_end
-                )
-            };
-            if (character_opt.has_value())
-            {
-                if (auto non_printable_char
-                    = get_non_printable_char_as_hex_string(character_opt.value()
-                    );
-                    non_printable_char.has_value())
-                {
-                    return_value.append(non_printable_char.value());
-                }
-                else
-                {
-                    add_char_to_unicode_string(
-                        character_opt.value(), return_value_inserter
-                    );
-                }
-            }
-            else
-            {
-                append_ascii(
-                    return_value,
-                    make_hex_from_char<
-                        true,
-                        hex_padding::value_based,
-                        str_prefix::arg_dependant>(*string_iterator)
-                );
-                ++string_iterator;
-            }
+            add_char_to_unicode_string(char_arg, return_value);
+        }
+    };
+    for (auto itt_var = sv.begin(), end_const = sv.end(); itt_var != end_const;)
+    {
+        if constexpr (same_as<InputChar, char>)
+        {
+            append_char(static_cast<unsigned char>(*itt_var));
+            ++itt_var;
+        }
+        else if (auto next_char_opt
+                 = next_char32_and_increment_iterator_no_error(
+                     itt_var, end_const
+                 );
+                 next_char_opt.has_value())
+        {
+            append_char(next_char_opt.value());
+        }
+        else
+        {
+            append_escaped(*itt_var); // invalid unit, emitted raw
+            ++itt_var;
         }
     }
     return return_value;
@@ -6960,10 +6670,8 @@ constexpr std::optional<std::basic_string<OutputChar>>
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     basic_string<OutputChar> return_value;
-    using Underlying = char_underlying_type_t<OutputChar>;
     using InputChar  = char_type_of_t<ArgType>;
-    auto str_as_sv   = basic_string<InputChar>(str_arg);
-    auto return_value_inserter{std::back_inserter(return_value)};
+    basic_string_view<InputChar> str_as_sv(str_arg);
     auto string_iterator{std::begin(str_as_sv)};
     auto string_iterator_end{std::end(str_as_sv)};
     // Move through input.
@@ -6991,7 +6699,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
             }
             else
             {
-                unicode_conversion_append_no_error(char_var, return_value);
+                add_char_to_unicode_string(char_var, return_value);
             }
         }
         else
@@ -7094,91 +6802,18 @@ constexpr std::optional<std::basic_string<OutputChar>>
                 {
                     return nullopt;
                 }
-                // if (is_invalid_char32(encoded_char))
-                // {
-                //    return nullopt;
-                // }
                 char32_t encoded_char = static_cast<char32_t>(underlying_uint);
                 if (next_char == U'x')
                 {
-                    // Raw code unit: pushed as-is, no encoding.
-                    return_value.push_back(static_cast<OutputChar>(encoded_char));
+                    return_value.push_back(static_cast<OutputChar>(encoded_char)
+                    );
                     continue;
                 }
-                if constexpr (same_as<OutputChar, char>)
+                size_t n_chars_added
+                    = add_char_to_unicode_string(encoded_char, return_value);
+                if (n_chars_added == 0)
                 {
-                    if (encoded_char > static_cast<char32_t>(
-                            std::numeric_limits<char8_t>::max()
-                        ))
-                    {
-                        return nullopt;
-                    }
-                    append_ascii(return_value, encoded_char);
-                }
-                else
-                {
-                    if constexpr (sizeof(OutputChar) == 4)
-                    {
-                        return_value.push_back(encoded_char);
-                    }
-                    else if constexpr (sizeof(OutputChar) == 2)
-                    {
-                        if (encoded_char <= 0xFFFF)
-                        {
-                            return_value.push_back(static_cast<OutputChar>(encoded_char)
-                            ); // lone surrogates pass through
-                        }
-                        else
-                        {
-                            encoded_char -= 0x1'0000;
-                            return_value.push_back(static_cast<OutputChar>(
-                                0xD800 + (encoded_char >> 10)
-                            ));
-                            return_value.push_back(static_cast<OutputChar>(
-                                0xDC00 + (encoded_char & 0x3FF)
-                            ));
-                        }
-                    }
-                    else
-                    {
-                        auto cont = [](char32_t char32_arg)
-                        {
-                            return static_cast<OutputChar>(
-                                0x80 | (char32_arg & 0x3F)
-                            );
-                        };
-                        if (encoded_char < 0x80)
-                        {
-                            return_value.push_back(static_cast<OutputChar>(encoded_char));
-                        }
-                        else if (encoded_char < 0x800)
-                        {
-                            return_value.push_back(
-                                static_cast<OutputChar>(0xC0 | (encoded_char >> 6))
-                            );
-                            return_value.push_back(cont(encoded_char));
-                        }
-                        else if (encoded_char < 0x1'0000)
-                        {
-                            return_value.push_back(
-                                static_cast<OutputChar>(0xE0 | (encoded_char >> 12))
-                            );
-                            return_value.push_back(cont(encoded_char >> 6));
-                            return_value.push_back(cont(encoded_char));
-                        }
-                        else
-                        {
-                            return_value.push_back(
-                                static_cast<OutputChar>(0xF0 | (encoded_char >> 18))
-                            );
-                            return_value.push_back(cont(encoded_char >> 12));
-                            return_value.push_back(cont(encoded_char >> 6));
-                            return_value.push_back(cont(encoded_char));
-                        }
-                    }
-                 //   unicode_conversion_append_no_error(
-                //        encoded_char, return_value
-                //    );
+                    return nullopt;
                 }
             }
         }
@@ -7734,10 +7369,9 @@ constexpr forward_scan_result_t<
     for (auto str_iterator{std::begin(str_arg)};
          str_iterator != str_iterator_end;)
     {
-        auto next_char_result{forward_scan_for_next_char32<
-            true,
-            decltype(str_iterator),
-            Original_Type>(str_iterator, str_iterator_end)};
+        auto next_char_result{forward_scan_for_next_char32<true, Original_Type>(
+            str_iterator, str_iterator_end
+        )};
         if (next_char_result.has_value())
         {
             auto& [character, iterator_offset]{next_char_result.value()};
@@ -7765,69 +7399,84 @@ constexpr bool
     return is_surrogate<T>(char_arg) || char_arg > char32_limit<T>();
 }
 
-template <typename CharT, typename CharU>
+template <typename CharU>
 constexpr std::size_t
     add_char_to_unicode_string(
-        const CharT                                          char_arg,
-        std::back_insert_iterator<std::basic_string<CharU>>& inserter_arg
+        const char32_t            char_arg,
+        std::basic_string<CharU>& str_arg
+    ) noexcept
+{
+    const std::size_t size_before{str_arg.size()};
+    encode_char32<CharU>(char_arg, std::back_inserter(str_arg));
+    return str_arg.size() - size_before;
+}
+
+template <typename OutChar, typename Out>
+requires is_char_type_c<OutChar> && std::output_iterator<Out, OutChar>
+constexpr Out
+    encode_char32(
+        const char32_t char_arg,
+        Out            out_arg
     ) noexcept
 {
     using namespace std;
-    size_t n_elements_added = 0;
-    if constexpr (same_as<CharT, char32_t> && same_as<CharU, char8_t>)
+    auto put = [&](const char32_t unit_arg)
     {
-        constexpr char8_t final_six_bits_set{0b0011'1111};
-        constexpr char8_t first_four_bits_set{0b1111'0000};
-        constexpr char8_t first_three_bits_set{0b1110'0000};
-        constexpr char8_t first_bit_set{0b1000'0000};
-        if (is_valid_ascii(char_arg))
+        *out_arg++ = static_cast<OutChar>(unit_arg);
+    };
+    if constexpr (same_as<OutChar, char32_t> || is_wchar_and_32_bit_c<OutChar>)
+    {
+        put(char_arg);
+    }
+    else if constexpr (same_as<OutChar, char16_t>
+                       || is_wchar_and_16_bit_c<OutChar>)
+    {
+        if (char_arg <= single_char16_limit_and_three_char8_limit<char32_t>())
         {
-            // 1-byte UTF-8
-            inserter_arg = static_cast<char8_t>(char_arg);
-            n_elements_added++;
+            // BMP, including lone surrogates.
+            put(char_arg);
+        }
+        else if (char_arg <= char32_limit<char32_t>())
+        {
+            // Supplementary plane: surrogate pair.
+            const char32_t offset{
+                char_arg - char16_offset_for_char32_conversion<char32_t>()
+            };
+            put((offset >> 10) + high_surrogate_lower_value<char32_t>());
+            put((offset & 0b0011'1111'1111)
+                + low_surrogate_lower_value<char32_t>());
+        }
+        else
+        {
+            std::unreachable();
+        }
+    }
+    else if constexpr (same_as<OutChar, char8_t> || same_as<OutChar, char>)
+    {
+        constexpr char32_t continuation{0b1000'0000};
+        constexpr char32_t six_bits{0b0011'1111};
+        if (char_arg <= ascii_limit<char32_t>())
+        {
+            put(char_arg);
         }
         else if (char_arg <= two_char8_limit<char32_t>())
         {
-            // 2-byte UTF-8.
-            // Isolate first 6 bits by rshift, then use binary or to set
-            // the other bits.
-            inserter_arg = static_cast<char8_t>(0b1100'0000 | (char_arg >> 6));
-            // Isolate first 6 bits by binary and, then use binary or to
-            // set the other bit.
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | (char_arg & final_six_bits_set)
-            );
-            n_elements_added += 2;
+            put(0b1100'0000 | (char_arg >> 6));
+            put(continuation | (char_arg & six_bits));
         }
         else if (char_arg
                  <= single_char16_limit_and_three_char8_limit<char32_t>())
         {
-            // 3-byte UTF-8
-            inserter_arg
-                = static_cast<char8_t>(first_three_bits_set | (char_arg >> 12));
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | ((char_arg >> 6) & final_six_bits_set)
-            );
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | (char_arg & final_six_bits_set)
-            );
-            n_elements_added += 3;
+            put(0b1110'0000 | (char_arg >> 12));
+            put(continuation | ((char_arg >> 6) & six_bits));
+            put(continuation | (char_arg & six_bits));
         }
         else if (char_arg <= char32_limit<char32_t>())
         {
-            // 4-byte UTF-8
-            inserter_arg
-                = static_cast<char8_t>(first_four_bits_set | (char_arg >> 18));
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | ((char_arg >> 12) & final_six_bits_set)
-            );
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | ((char_arg >> 6) & final_six_bits_set)
-            );
-            inserter_arg = static_cast<char8_t>(
-                first_bit_set | (char_arg & final_six_bits_set)
-            );
-            n_elements_added += 4;
+            put(0b1111'0000 | (char_arg >> 18));
+            put(continuation | ((char_arg >> 12) & six_bits));
+            put(continuation | ((char_arg >> 6) & six_bits));
+            put(continuation | (char_arg & six_bits));
         }
         else
         {
@@ -7836,16 +7485,11 @@ constexpr std::size_t
     }
     else
     {
-        auto res = unicode_conversion_with_exception<CharU>(
-            basic_string<CharT>(1, char_arg)
+        UNICODE_BRIDGE_STATIC_ASSERT(
+            OutChar, "encode_char32: unsupported output character type"
         );
-        for (auto&& character : res)
-        {
-            inserter_arg = character;
-            n_elements_added++;
-        }
     }
-    return n_elements_added;
+    return out_arg;
 }
 
 template <bool Return_Reason, typename T, typename Original_Value_Type>
@@ -7876,7 +7520,7 @@ constexpr std::conditional_t<
     else
     {
         auto res{
-            forward_scan_for_next_char32<Return_Reason, T, Original_Value_Type>(
+            forward_scan_for_next_char32<Return_Reason, Original_Value_Type>(
                 iterator_arg, itt_end_arg
             )
         };
@@ -8162,7 +7806,7 @@ constexpr std::conditional_t<
     }
 }
 
-template <bool Return_Reason, typename T, typename Original_Value_Type>
+template <bool Return_Reason, typename Original_Value_Type, typename T>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Value_Type>
 constexpr std::conditional_t<
@@ -8595,45 +8239,40 @@ constexpr bool is_low_surrogate(
            && char_arg <= low_surrogate_upper_value<T>();
 }
 
-template <typename InputChar, typename OutputChar>
-constexpr std::optional<std::basic_string<OutputChar>>
+template <typename InputChar, hex_padding Hex_Padding, str_prefix Str_Prefix>
+requires is_char_type_c<InputChar>
+constexpr std::optional<std::u8string>
     special_char_as_string(
         const char32_t char_arg
     ) noexcept
 {
     using namespace std;
-    constexpr auto padding = same_as<char, InputChar>
-                                 ? hex_padding::exactly_two
-                                 : hex_padding::value_based;
-    constexpr auto prefix  = same_as<char, InputChar>
-                                 ? str_prefix::slash_x
-                                 : str_prefix::arg_dependant;
     // These characters have a set return value, which we conver to the
     // correct type.
     switch (char_arg)
     {
     case 0x00:
-        return cast_ascii<OutputChar>(u8"\\0");
+        return u8"\\0";
     case 0x07:
-        return cast_ascii<OutputChar>(u8"\\a");
+        return u8"\\a";
     case 0x08:
-        return cast_ascii<OutputChar>(u8"\\b");
+        return u8"\\b";
     case 0x09:
-        return cast_ascii<OutputChar>(u8"\\t");
+        return u8"\\t";
     case 0x0A:
-        return cast_ascii<OutputChar>(u8"\\n");
+        return u8"\\n";
     case 0x0B:
-        return cast_ascii<OutputChar>(u8"\\v");
+        return u8"\\v";
     case 0x0C:
-        return cast_ascii<OutputChar>(u8"\\f");
+        return u8"\\f";
     case 0x0D:
-        return cast_ascii<OutputChar>(u8"\\r");
+        return u8"\\r";
     case 0x22:
-        return cast_ascii<OutputChar>(u8"\\\"");
+        return u8"\\\"";
     case 0x27:
-        return cast_ascii<OutputChar>(u8"\\'");
+        return u8"\\'";
     case 0x5C:
-        return cast_ascii<OutputChar>(u8"\\\\");
+        return u8"\\\\";
     default:
         break;
     }
@@ -8688,9 +8327,9 @@ constexpr std::optional<std::basic_string<OutputChar>>
     // If the character is not within any of the ranges given, return
     // nullopt.
     return (it != ranges::end(arr_to_search) && char_arg >= it->first)
-               ? make_optional(cast_ascii<OutputChar>(
-                     make_hex_from_char<true, padding, prefix>(char_arg)
-                 ))
+               ? make_optional(
+                     make_hex_from_char<true, Hex_Padding, Str_Prefix>(char_arg)
+                 )
                : nullopt;
 }
 
