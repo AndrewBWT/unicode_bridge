@@ -1,18 +1,18 @@
 #pragma once
 #include <algorithm>
 #include <array>
+#include <charconv>
+#include <cstdint>
 #include <expected>
+#include <iterator>
+#include <limits>
 #include <optional>
 #include <ostream>
 #include <string>
-#include <type_traits>
-#include <iterator>
-#include <charconv>
-#include <variant>
 #include <tuple>
-#include <limits>
+#include <type_traits>
 #include <utility>
-#include <cstdint>
+#include <variant>
 
 // ---- Macros ----
 
@@ -137,92 +137,45 @@ using char_type_of_t = typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::char_type_of<
     String_Like_Type>::type;
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 
-template <typename T>
-struct unicode_string_arg_char_type
-{
-    using type = char_type_of_t<T>; // fallback: pointers, containers, etc.
-};
-
-template <>
-struct unicode_string_arg_char_type<std::monostate>
-{
-    using type = void;
-};
-
-template <typename X>
-requires std::input_or_output_iterator<X>
-struct unicode_string_arg_char_type<std::pair<X, X>>
-{
-    using type = typename std::iterator_traits<X>::value_type;
-};
-
-template <typename CharT, typename Traits>
-struct unicode_string_arg_char_type<std::basic_string_view<CharT, Traits>>
-{
-    using type = CharT;
-};
-
 // ---- Internal concepts ----
-// Defined here as require char_type_is_unicode_c as defined above.
-/*!
- * @brief Primary template used to obtain the underlying character type of some
- * generic argument representing a string.
- */
 template <typename T>
-struct complete_string_arg_char_type;
+struct string_arg_char_type
+{};
 
-/*!
- * @brief Partial specialisation for monostate.
- */
 template <>
-struct complete_string_arg_char_type<std::monostate>
+struct string_arg_char_type<std::monostate>
 {
     using type = void;
 };
 
-/*!
- * @brief Partial specialisation for a pair of iterators.
- */
 template <typename X>
 requires std::input_or_output_iterator<X>
-struct complete_string_arg_char_type<std::pair<X, X>>
+struct string_arg_char_type<std::pair<X, X>>
 {
-    using type = typename std::iterator_traits<X>::value_type;
+    using type = std::iter_value_t<X>;
 };
 
-/*!
- * @brief Partial specialisation for string_view.
- */
-template <typename CharT, typename Traits>
-struct complete_string_arg_char_type<std::basic_string_view<CharT, Traits>>
+template <typename T>
+requires requires { typename char_type_of_t<T>; }
+struct string_arg_char_type<T>
 {
-    using type = CharT;
+    using type = char_type_of_t<T>;
 };
 
-/*!
- * @brief Concept for a generic Unicode string type that can either be a
- * monostate (no string provided), a pair of iterators or a basic_string_view.
- *
- * The template type of the iterators value_type and the basic_string_view's
- * internal type must be a unicode character.
- */
+template <typename T>
+using string_arg_char_type_t = typename string_arg_char_type<T>::type;
 
 template <typename T>
 concept is_complete_unicode_string_arg_type_c
-    = std::same_as<typename unicode_string_arg_char_type<T>::type, void>
-      || char_type_is_unicode_c<typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::
-                                    unicode_string_arg_char_type<T>::type>;
-/*!
- * @brief Concept for a generic ASCII string type that can either be a
- * monostate (no string provided), a pair of iterators or a basic_string_view.
- *
- * The template type of the iterators value_type and the basic_string_view's
- * internal type must be a unicode character.
- */
+    = requires { typename string_arg_char_type_t<T>; }
+      && (std::same_as<string_arg_char_type_t<T>, void>
+          || char_type_is_unicode_c<string_arg_char_type_t<T>>);
+
 template <typename T>
 concept is_complete_ascii_string_arg_type_c
-    = std::same_as<typename complete_string_arg_char_type<T>::type, void>
-      || std::same_as<char, typename complete_string_arg_char_type<T>::type>;
+    = requires { typename string_arg_char_type_t<T>; }
+      && (std::same_as<string_arg_char_type_t<T>, void>
+          || std::same_as<string_arg_char_type_t<T>, char>);
 /*!
  * @brief Used to denote when a wchar_t is 16 bits.
  */
@@ -2631,10 +2584,9 @@ constexpr std::optional<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return from_formatted_unicode_string<OutputChar>(sv);
+    return from_formatted_unicode_string<OutputChar>(
+        basic_string_view<InputChar>(&char_arg, 1)
+    );
 }
 
 template <typename OutputChar, typename InputChar>
@@ -2987,7 +2939,7 @@ struct forward_scan_unicode_error_factory
     static constexpr forward_scan_unicode_error
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::size_t             code_points_encountered_arg,
+            const std::uint8_t             code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept;
 
@@ -3080,21 +3032,18 @@ struct prev_char32_error_factory
     static constexpr prev_char32_error
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::size_t             code_points_encountered_arg,
+            const std::uint8_t             code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept
     {
         return prev_char32_error(
             prev_char32_error::prev_char32_error_code::base_unicode_error,
-            basic_unicode_error(
-                basic_unicode_error::basic_unicode_error_code::
-                    invalid_utf32_code_point_after_utf8_conversion,
-                u8_code_points_arg,
-                char32_character_arg,
-                code_points_encountered_arg,
-                {u'\0', u'\0'},
-                false
-            )
+            basic_unicode_error_factory::
+                invalid_utf32_code_point_after_utf8_conversion(
+                    u8_code_points_arg,
+                    code_points_encountered_arg,
+                    char32_character_arg
+                )
         );
     }
 
@@ -3107,14 +3056,10 @@ struct prev_char32_error_factory
     {
         return prev_char32_error(
             prev_char32_error::prev_char32_error_code::base_unicode_error,
-            basic_unicode_error(
-                basic_unicode_error::basic_unicode_error_code::
-                    overlong_encoding,
+            basic_unicode_error_factory::overlong_encoding(
                 u8_code_points_arg,
-                char32_character_arg,
                 code_points_encountered_arg,
-                {u'\0', u'\0'},
-                false
+                char32_character_arg
             )
         );
     }
@@ -3222,7 +3167,7 @@ struct prev_char32_error_factory
     static constexpr prev_char32_error
         invalid_utf8_byte(
             const std::array<char8_t, 4>& char8_arr_arg,
-            const std::size_t             n_bytes_arg
+            const std::uint8_t             n_bytes_arg
         ) noexcept
     {
         return prev_char32_error(
@@ -3266,14 +3211,8 @@ struct prev_char32_error_factory
     {
         return prev_char32_error(
             prev_char32_error::prev_char32_error_code::base_unicode_error,
-            basic_unicode_error(
-                basic_unicode_error::basic_unicode_error_code::
-                    invalid_utf32_code_point,
-                {u8'\0', u8'\0', u8'\0', u8'\0'},
-                char32_character_arg,
-                std::numeric_limits<uint8_t>::max(),
-                {u'\0', u'\0'},
-                false
+            basic_unicode_error_factory::invalid_utf32_code_point(
+                char32_character_arg, is_wchar_arg
             )
         );
     }
@@ -3288,6 +3227,63 @@ template <typename ResultT, typename ErrorT>
 requires unicode_bridge_error_c<ErrorT>
 ResultT
     throw_if_error(std::expected<ResultT, ErrorT> result);
+
+template <typename T, typename E>
+constexpr std::optional<T>
+    to_optional(
+        std::expected<T, E> expected_arg
+    ) noexcept
+{
+    using namespace std;
+    return expected_arg.has_value()
+               ? make_optional(std::move(expected_arg.value()))
+               : nullopt;
+}
+
+template <typename It>
+constexpr std::array<char8_t, 4>
+    u8_units_to_arr(
+        It          itt_arg,
+        std::size_t n_elements_arg
+    ) noexcept
+{
+    using namespace std;
+    array<char8_t, 4> return_value{};
+    auto              element = itt_arg;
+    for (size_t idx = 0; idx < n_elements_arg && idx < 4; ++idx)
+    {
+        return_value[idx] = static_cast<char8_t>(*(element));
+        ++element;
+    }
+    return return_value;
+}
+
+template <typename Fn, typename Out>
+using append_error_t = typename std::invoke_result_t<Fn&, Out&>::value_type;
+template <typename Fn, typename Out>
+concept append_function_c
+    = std::invocable<Fn&, Out&>
+      && requires { typename std::invoke_result_t<Fn&, Out&>::value_type; }
+      && std::same_as<
+          std::invoke_result_t<Fn&, Out&>,
+          std::optional<append_error_t<Fn, Out>>>;
+
+template <typename Result, typename AppendFn>
+requires std::default_initializable<Result> && std::movable<Result>
+         && append_function_c<AppendFn, Result>
+constexpr std::expected<Result, append_error_t<AppendFn, Result>>
+    run_append(
+        AppendFn append_arg
+    )
+{
+    Result result_var;
+    if (auto error_opt = append_arg(result_var); error_opt.has_value())
+    {
+        return std::unexpected(std::move(*error_opt));
+    }
+    return result_var;
+}
+
 /*!
  * @brief Gets the specified constant.
  *
@@ -3504,21 +3500,7 @@ constexpr std::u8string
 }
 
 template <typename T>
-using basic_unicode_result_t = std::expected<T, unicode_conversion_error>;
-template <typename T>
 using forward_scan_result_t = std::expected<T, forward_scan_unicode_error>;
-constexpr std::optional<std::pair<char32_t, std::size_t>>
-    if_invalid_u32string_return_char_and_position(
-        const std::u32string_view str_arg
-    ) noexcept;
-
-template <bool Return_u32string, typename Original_Type>
-requires char_type_is_unicode_c<Original_Type>
-constexpr forward_scan_result_t<
-    std::conditional_t<Return_u32string, std::u32string, std::monostate>>
-    validate_u16string_and_convert_to_u32string(
-        const std::u16string_view str_arg
-    ) noexcept;
 template <typename T>
 requires is_wchar_and_32_bit_c<T> || std::same_as<T, char32_t>
 constexpr bool
@@ -3530,8 +3512,8 @@ constexpr std::size_t
         std::basic_string<CharU>& str_arg
     ) noexcept;
 
-template <typename OutChar, typename Out>
-requires is_char_type_c<OutChar> && std::output_iterator<Out, OutChar>
+template <typename OutputChar, typename Out>
+requires is_char_type_c<OutputChar> && std::output_iterator<Out, OutputChar>
 constexpr Out
     encode_char32(const char32_t char_arg, Out out_arg) noexcept;
 
@@ -3576,7 +3558,6 @@ constexpr std::size_t
 }
 
 template <
-    bool Forward_Moving,
     bool Return_Reason,
     typename Original_Value_Type,
     typename Error_Factory,
@@ -3631,18 +3612,6 @@ constexpr std::conditional_t<
     std::optional<std::pair<char32_t, std::size_t>>>
     forward_scan_for_next_char32(const T iterator_arg, const T itt_end_arg)
         noexcept;
-template <bool Return_Reason, typename T, typename Original_Value_Type>
-requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
-         && char_type_is_unicode_c<Original_Value_Type>
-constexpr std::conditional_t<
-    Return_Reason,
-    basic_unicode_result_t<std::pair<char32_t, std::size_t>>,
-    std::optional<std::pair<char32_t, std::size_t>>>
-    prev_char32_internal(
-        const T itt_end_arg,
-        const T iterator_arg,
-        const T iterator_begin_arg
-    ) noexcept;
 template <bool Return_Reason, typename T, typename Original_Type>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Type>
@@ -3667,6 +3636,14 @@ constexpr std::conditional_t<
         T&      iterator_arg,
         const T iterator_begin_arg
     ) noexcept;
+
+constexpr bool
+    is_utf8_continuation_byte(
+        const char8_t char_arg
+    ) noexcept
+{
+    return (char_arg & 0b1100'0000) == 0b1000'0000;
+}
 
 constexpr char32_t
     leading_byte_data_bits(
@@ -3706,8 +3683,6 @@ constexpr std::conditional_t<
     std::optional<std::pair<char32_t, std::size_t>>>
     check_decoded_utf8_codepoint(
         const T           sequence_begin_arg,
-        const T           iterator_begin_arg,
-        const T           local_iterator_arg,
         const std::size_t sequence_length_arg,
         const char32_t    code_point_arg
     ) noexcept
@@ -3717,26 +3692,14 @@ constexpr std::conditional_t<
     constexpr array<char32_t, 5> code_point_limits{
         0b0, 0b0, 0b1000'0000, 0b1000'0000'0000, 0b0001'0000'0000'0000'0000
     };
-
-    std::array<char8_t, 4> code_units{
-        static_cast<char8_t>(*sequence_begin_arg),
-        (sequence_length_arg > 1)
-            ? static_cast<char8_t>(*(sequence_begin_arg + 1))
-            : u8'\0',
-        (sequence_length_arg > 2)
-            ? static_cast<char8_t>(*(sequence_begin_arg + 2))
-            : u8'\0',
-        (sequence_length_arg > 3)
-            ? static_cast<char8_t>(*(sequence_begin_arg + 3))
-            : u8'\0',
-    };
-
     if (code_point_arg < code_point_limits[sequence_length_arg])
     {
         if constexpr (Return_Reason)
         {
             return unexpected(Error_Factory::overlong_encoding(
-                code_units, sequence_length_arg, code_point_arg
+                u8_units_to_arr(sequence_begin_arg, sequence_length_arg),
+                static_cast<uint8_t>(sequence_length_arg),
+                code_point_arg
             ));
         }
         else
@@ -3744,14 +3707,15 @@ constexpr std::conditional_t<
             return nullopt;
         }
     }
-
     if (is_invalid_char32(code_point_arg))
     {
         if constexpr (Return_Reason)
         {
             return unexpected(
                 Error_Factory::invalid_utf32_code_point_after_utf8_conversion(
-                    code_units, sequence_length_arg, code_point_arg
+                    u8_units_to_arr(sequence_begin_arg, sequence_length_arg),
+                    static_cast<uint8_t>(sequence_length_arg),
+                    code_point_arg
                 )
             );
         }
@@ -3760,18 +3724,14 @@ constexpr std::conditional_t<
             return nullopt;
         }
     }
-
     return make_pair(code_point_arg, sequence_length_arg);
 }
-
 template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 4)
 constexpr T char16_offset_for_char32_conversion() noexcept;
-
 template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 2)
 constexpr T high_surrogate_upper_value() noexcept;
-
 template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 2)
 constexpr T low_surrogate_lower_value() noexcept;
@@ -3795,6 +3755,7 @@ template <
 requires is_char_type_c<InputChar>
 constexpr std::optional<std::u8string>
     special_char_as_string(const char32_t char_arg) noexcept;
+
 template <typename T>
 constexpr char32_t
     decode_surrogate_pair(
@@ -3898,12 +3859,17 @@ constexpr std::u8string
         return chars_as_hex;
     }
 }
-
+constexpr std::u8string_view
+    ending_msg() noexcept
+{
+    return u8"cannot represent a valid Unicode scalar "
+           u8"value, and the function was terminated.";
+}
 UNICODE_BRIDGE_INTERNAL_NS_END
 UNICODE_BRIDGE_NS_END
+
 // ---- Implementations ---- //
 UNICODE_BRIDGE_NS_BEGIN
-
 constexpr basic_unicode_error::basic_unicode_error(
     const basic_unicode_error_code code_arg,
     const std::array<char8_t, 4>&  u8_code_points_arg,
@@ -3985,7 +3951,7 @@ std::u8string
     bool brackets_open = false;
     if constexpr (not same_as<String_Type, monostate>)
     {
-        using CharT = typename unicode_string_arg_char_type<String_Type>::type;
+        using CharT = string_arg_char_type_t<String_Type>;
         basic_string_view<CharT> sv;
         size_t                   start_idx = character_index_arg;
         if constexpr (requires { typename String_Type::first_type; })
@@ -4061,8 +4027,8 @@ constexpr std::u8string
                 ? u8" falls within the surrogate range"
                 : u8" exceeds the maximum valid codepoint"
         );
-        msg.append(u8", it cannot represent a valid Unicode scalar value, and "
-                   u8"the function was terminated.");
+        msg.append(u8", it ");
+        msg.append(ending_msg());
     };
     auto utf8_begin_str
         = [&](const u8string& chars_as_hex, const size_t n_code_units)
@@ -4256,8 +4222,7 @@ constexpr std::u8string
                  u8"start of a two-byte sequence. However, the input ended "
                  u8"after the first code unit — one continuation byte was "
                  u8"expected but was not present. As the sequence is "
-                 u8"incomplete, it cannot represent a valid Unicode scalar "
-                 u8"value, and the function was terminated."               }, //
+                 u8"incomplete, it "                }, //
                 // case 0
                 {3,
                  1, u8" was found to be a valid leading byte, indicating "
@@ -4267,9 +4232,7 @@ constexpr std::u8string
                  u8"after the first code unit — two continuation bytes "
                  u8"were "
                  u8"expected but none were present. As the sequence is "
-                 u8"incomplete, it cannot represent a valid Unicode "
-                 u8"scalar "
-                 u8"value, and the function was terminated."               }, //   case 1
+                 u8"incomplete, it "                }, //   case 1
                 {3,
                  2, u8" form the start of a three-byte sequence. However, "
                  u8"the "
@@ -4277,10 +4240,7 @@ constexpr std::u8string
                  u8"further "
                  u8"continuation byte was expected but was not present. "
                  u8"As "
-                 u8"the sequence is incomplete, it cannot represent a "
-                 u8"valid "
-                 u8"Unicode scalar value, and the function was "
-                 u8"terminated."                                           }, // case 2
+                 u8"the sequence is incomplete, it "}, // case 2
                 {4,
                  1, u8" was found to be a valid leading byte, indicating the "
                  u8"start of a four-byte sequence. However, the input "
@@ -4288,8 +4248,7 @@ constexpr std::u8string
                  u8"after the first code unit — three continuation bytes "
                  u8"were "
                  u8"expected but none were present. As the sequence is "
-                 u8"incomplete, it cannot represent a valid Unicode scalar "
-                 u8"value, and the function was terminated."               }, //
+                 u8"incomplete, it "                }, //
                 // case 3
                 {4,
                  2, u8" form the start of a four-byte sequence. However, "
@@ -4298,18 +4257,12 @@ constexpr std::u8string
                  u8"further "
                  u8"continuation bytes were expected but none were "
                  u8"present. As "
-                 u8"the sequence is incomplete, it cannot represent a "
-                 u8"valid "
-                 u8"Unicode scalar value, and the function was "
-                 u8"terminated."                                           }, // case 4
+                 u8"the sequence is incomplete, it "}, // case 4
                 {4,
                  3, u8" form the start of a four-byte sequence. However, the "
                  u8"input ended after the third code unit — one further "
                  u8"continuation byte was expected but was not present. As "
-                 u8"the sequence is incomplete, it cannot represent a "
-                 u8"valid "
-                 u8"Unicode scalar value, and the function was terminated."
-                }, // case 5
+                 u8"the sequence is incomplete, it "}, // case 5
         };
         const auto& [expected_code_points, code_points_encountered, error_str]
             = truncated_sequence_byte_table[_basic_unicode_error.auxillery_data(
@@ -4319,6 +4272,7 @@ constexpr std::u8string
             code_points_encountered
         );
         msg.append(error_str);
+        msg.append(ending_msg());
     }
     break;
     case invalid_continuation_byte:
@@ -4339,10 +4293,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a valid Unicode scalar value, and the "
-                 u8"function "
-                 u8"was terminated."                 }, // case 0
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 0
                 {3,
                  {1, 0, 0},
                  1, u8" form the start of a three-byte sequence. The second "
@@ -4351,10 +4302,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a "
-                 u8"valid Unicode scalar value, and the function was "
-                 u8"terminated."                     }, // case 1
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 1
                 {3,
                  {2, 0, 0},
                  1, u8" form the start of a three-byte sequence. The third "
@@ -4363,10 +4311,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a "
-                 u8"valid Unicode scalar value, and the function was "
-                 u8"terminated."                     }, // case 2
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 2
                 {3,
                  {1, 2, 0},
                  2, u8" form the start of a three-byte sequence. The second "
@@ -4375,10 +4320,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot "
-                 u8"represent "
-                 u8"a valid Unicode scalar value, and the function was "
-                 u8"terminated."         }, // case 3
+                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence "     }, // case 3
                 {4,
                  {1, 0, 0},
                  1, u8" form the start of a four-byte sequence. The second "
@@ -4387,10 +4329,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a "
-                 u8"valid Unicode scalar value, and the function was "
-                 u8"terminated."                     }, // case 4
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 4
                 {4,
                  {2, 0, 0},
                  1, u8" form the start of a four-byte sequence. The third "
@@ -4399,10 +4338,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a "
-                 u8"valid Unicode scalar value, and the function was "
-                 u8"terminated."                     }, // case 5
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 5
                 {4,
                  {3, 0, 0},
                  1, u8" form the start of a four-byte sequence. The fourth "
@@ -4411,10 +4347,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence cannot "
-                 u8"represent a "
-                 u8"valid Unicode scalar value, and the function was "
-                 u8"terminated."                     }, // case 6
+                 u8"and 0xBF. As ",                  u8" falls outside this range, the sequence "       }, // case 6
                 {4,
                  {1, 2, 0},
                  2, u8" form the start of a four-byte sequence. The second "
@@ -4423,10 +4356,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence cannot "
-                 u8"represent "
-                 u8"a valid Unicode scalar value, and the function was "
-                 u8"terminated."         }, // case 7
+                 u8"and 0xBF. As ",      u8"both are outside this range, the sequence "     }, // case 7
                 {4,
                  {1, 3, 0},
                  2, u8" form the start of a four-byte sequence. The second "
@@ -4435,10 +4365,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence cannot "
-                 u8"represent "
-                 u8"a valid Unicode scalar value, and the function was "
-                 u8"terminated."        }, // case 8
+                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence "     }, // case 8
                 {4,
                  {2, 3, 0},
                  2, u8" form the start of a four-byte sequence. The third and "
@@ -4446,10 +4373,7 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence cannot "
-                 u8"represent "
-                 u8"a valid Unicode scalar value, and the function was "
-                 u8"terminated."        }, // case 9
+                 u8"and 0xBF. As ",     u8"both are outside this range, the sequence "     }, // case 9
                 {4,
                  {1, 2, 3},
                  3, u8" form the start of a four-byte sequence. The second, "
@@ -4458,10 +4382,8 @@ constexpr std::u8string
                  u8"— a "
                  u8"valid continuation byte must be inclusively between "
                  u8"0x80 "
-                 u8"and 0xBF. As ", u8"all three are outside this range, the sequence cannot "
-                 u8"represent a valid Unicode scalar value, and the "
-                 u8"function "
-                 u8"was terminated."}, // case 10
+                 u8"and 0xBF. As ", u8"all three are outside this range, the sequence "
+                }, // case 10
         };
 
         const auto& [expected_code_point_size, invalid_code_point_indexes, numb_invalid_code_points, str_1, str_2, str_3]
@@ -4493,6 +4415,7 @@ constexpr std::u8string
         msg.append(str_2);
         msg.append(numb_invalid_code_points == 1 ? invalid_code_points : u8"");
         msg.append(str_3);
+        msg.append(ending_msg());
     }
     break;
     case high_surrogate_then_end_of_stream:
@@ -4505,9 +4428,9 @@ constexpr std::u8string
             u8"pair. However, the input ended after this code unit — a low "
             u8"surrogate was expected to follow but was not present. As "
             u8"the "
-            u8"surrogate pair is incomplete, it cannot represent a valid "
-            u8"Unicode scalar value, and the function was terminated."
+            u8"surrogate pair is incomplete, it "
         );
+        msg.append(ending_msg());
     }
     break;
     case high_surrogate_not_followed_by_low_surrogate:
@@ -4532,8 +4455,8 @@ constexpr std::u8string
             )
         );
         msg.append(u8") falls outside this range, and therefore the two code "
-                   u8"units cannot represent a valid Unicode scalar value, and "
-                   u8"the function was terminated.");
+                   u8"units ");
+        msg.append(ending_msg());
     }
     break;
     case unexpected_low_surrogate:
@@ -4546,11 +4469,9 @@ constexpr std::u8string
             u8"by a high surrogate (inclusively between 0xD800 and 0xDBFF) "
             u8"as "
             u8"the second part of a surrogate pair. As this low surrogate "
-            u8"appears without a preceding high surrogate, it cannot "
-            u8"represent "
-            u8"a valid Unicode scalar value, and the function was "
-            u8"terminated."
+            u8"appears without a preceding high surrogate, it "
         );
+        msg.append(ending_msg());
     }
     break;
     case basic_unicode_error:
@@ -5139,10 +5060,9 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         msg.append(
             u8" were scanned backwards. No "
             u8"valid leading byte was found — a valid UTF-8 leading byte "
-            u8"must "
-            u8"be "
+            u8"must be "
             u8"in one of the following ranges: 0x00 to 0x7F (single-byte), "
-            u8"0xC2 to 0xDF (two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 "
+            u8"0xC0 to 0xDF (two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 "
             u8"to "
             u8"0xF7 (four-byte). As none of the four code units fall "
             u8"within "
@@ -5150,11 +5070,9 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             u8"of these ranges, and the maximum number of continuation "
             u8"bytes "
             u8"was "
-            u8"scanned, it was determined that these code units cannot "
-            u8"represent "
-            u8"a valid Unicode scalar value, and the function was "
-            u8"terminated."
+            u8"scanned, it was determined that these code units "
         );
+        msg.append(ending_msg());
         break;
     case leading_byte_sequence_length_mismatch:
     {
@@ -5192,19 +5110,14 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
                     ? u8" continuation byte was found succeeding it. As a "
                       u8"single-byte character cannot be part of a "
                       u8"multi-byte "
-                      u8"sequence, these code units cannot represent a "
-                      u8"valid "
-                      u8"Unicode scalar value, and the function was "
-                      u8"terminated."
+                      u8"sequence, these code units "
                     : u8" continuation bytes were found succeeding it. As "
                       u8"a "
                       u8"single-byte character cannot be part of a "
                       u8"multi-byte "
-                      u8"sequence, these code units cannot represent a "
-                      u8"valid "
-                      u8"Unicode scalar value, and the function was "
-                      u8"terminated."
+                      u8"sequence, these code units "
             );
+            msg.append(ending_msg());
         }
         else
         {
@@ -5237,13 +5150,10 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             }
             msg.append(u8"Therefore, ");
             msg.append(
-                n_continuation_found == 0 ? u8"this code unit"
-                                          : u8"these code units"
+                n_continuation_found == 0 ? u8"this code unit "
+                                          : u8"these code units "
             );
-            msg.append(
-                u8" cannot represent a valid "
-                u8"Unicode scalar value, and the function was terminated."
-            );
+            msg.append(ending_msg());
         }
     }
     break;
@@ -5287,7 +5197,7 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
         msg.append(
             u8"a valid UTF-8 byte must be in one of the following ranges: "
             u8"0x00 to 0x7F (single-byte leading byte), 0x80 to 0xBF "
-            u8"(continuation byte), 0xC2 to 0xDF (two-byte leading byte), "
+            u8"(continuation byte), 0xC0 to 0xDF (two-byte leading byte), "
             u8"0xE0 to 0xEF (three-byte leading byte), or 0xF0 to 0xF7 "
             u8"(four-byte leading byte). As "
         );
@@ -5328,19 +5238,16 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             u8"the beginning of the input was reached before a valid "
             u8"leading "
             u8"byte was found. A valid UTF-8 leading byte must be in one "
-            u8"of "
-            u8"the "
-            u8"following ranges: 0x00 to 0x7F (single-byte), 0xC2 to 0xDF "
+            u8"of the "
+            u8"following ranges: 0x00 to 0x7F (single-byte), 0xC0 to 0xDF "
             u8"(two-byte), 0xE0 to 0xEF (three-byte), or 0xF0 to 0xF7 "
             u8"(four-byte). As the input ends before such a byte is found, "
         );
         msg.append(
-            n_continuation_found == 1 ? u8"this code unit cannot"
-                                      : u8"these code units cannot"
+            n_continuation_found == 1 ? u8"this code unit "
+                                      : u8"these code units "
         );
-        msg.append(u8" represent a valid Unicode scalar value, and the "
-                   u8"function was "
-                   u8"terminated.");
+        msg.append(ending_msg());
     }
     break;
     case low_surrogate_then_start_of_stream:
@@ -5365,10 +5272,8 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
             u8"unit "
             u8"exists. As it cannot be the second part of a surrogate "
             u8"pair, it "
-            u8"cannot represent a valid Unicode scalar value, and the "
-            u8"function "
-            u8"was terminated."
         );
+        msg.append(ending_msg());
     }
     break;
     case low_surrogate_not_preceded_by_high_surrogate:
@@ -5398,8 +5303,8 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
                    str_prefix::zero_x>(_basic_unicode_error.u16_code_points()[0]
         ));
         msg.append(u8") falls outside this range, and therefore the two code "
-                   u8"units cannot represent a valid Unicode scalar value, "
-                   u8"and the function was terminated.");
+                   u8"units ");
+        msg.append(ending_msg());
         break;
     }
     case unexpected_high_surrogate:
@@ -5413,17 +5318,14 @@ requires UNICODE_BRIDGE_NAMESPACE_INTERNAL::
                 string_type_arg
             )
         );
-        msg.append(u8" is a high surrogate. When "
-                   u8"scanned forwards, high "
+        msg.append(u8" is a high surrogate. When scanned forwards, high "
                    u8"surrogates must always be followed by a low surrogate "
-                   u8"(inclusively between "
-                   u8"0xDC00 and 0xDFFF). This high surrogate was encountered "
-                   u8"while scanning "
+                   u8"(inclusively between 0xDC00 and 0xDFFF). This high "
+                   u8"surrogate was encountered while scanning "
                    u8"backwards, and no low surrogate was previously "
                    u8"encountered. Therefore, it is "
-                   u8"not part of a surrogate pair, and cannot represent a "
-                   u8"valid Unicode scalar "
-                   u8"value, and the function was terminated.");
+                   u8"not part of a surrogate pair, and ");
+        msg.append(ending_msg());
         break;
     }
     }
@@ -5473,16 +5375,13 @@ constexpr unicode_to_ascii_result<std::string>
     ) noexcept
 {
     using namespace std;
-    string output_str;
-    auto   result = convert_unicode_to_ascii_append(str_arg, output_str);
-    if (result.has_value())
-    {
-        return unexpected(result.value());
-    }
-    else
-    {
-        return output_str;
-    }
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return run_append<string>(
+        [&](auto& output_arg)
+        {
+            return convert_unicode_to_ascii_append(str_arg, output_arg);
+        }
+    );
 }
 
 template <typename ArgType>
@@ -5528,20 +5427,14 @@ constexpr std::optional<unicode_to_ascii_error>
             {
                 if constexpr (same_as<CharT, char8_t>)
                 {
-                    array<char8_t, 4> u8_chars
-                        = {*string_iterator,
-                           *(string_iterator + 1),
-                           (character_res.value().second > 2)
-                               ? *(string_iterator + 2)
-                               : u8'\0',
-                           (character_res.value().second > 3)
-                               ? *(string_iterator + 3)
-                               : u8'\0'};
                     return make_optional(
                         unicode_to_ascii_error_factory::
                             non_ascii_character_found_from_utf8(
                                 character_res.value().first,
-                                u8_chars,
+                                u8_units_to_arr(
+                                    string_iterator,
+                                    character_res.value().second
+                                ),
                                 idx,
                                 character_res.value().second,
                                 chars_written
@@ -5608,16 +5501,8 @@ constexpr std::optional<std::string>
     ) noexcept
 {
     using namespace std;
-    string output_str;
-    auto   result = convert_unicode_to_ascii_append(str_arg, output_str);
-    if (result.has_value())
-    {
-        return nullopt;
-    }
-    else
-    {
-        return make_optional(output_str);
-    }
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return to_optional(convert_unicode_to_ascii(str_arg));
 }
 
 template <typename ArgType>
@@ -5647,10 +5532,7 @@ constexpr unicode_to_ascii_result<std::string>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return convert_unicode_to_ascii(sv);
+    return convert_unicode_to_ascii(basic_string_view<InputChar>(&char_arg, 1));
 }
 
 template <typename InputChar>
@@ -5662,10 +5544,9 @@ constexpr std::optional<unicode_to_ascii_error>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return convert_unicode_to_ascii_append(sv, str_to_append_to_arg);
+    return convert_unicode_to_ascii_append(
+        basic_string_view<InputChar>(&char_arg, 1), str_to_append_to_arg
+    );
 }
 
 template <typename InputChar>
@@ -5676,10 +5557,9 @@ constexpr std::optional<std::string>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return convert_unicode_to_ascii_no_error(sv);
+    return convert_unicode_to_ascii_no_error(
+        basic_string_view<InputChar>(&char_arg, 1)
+    );
 }
 
 template <typename InputChar>
@@ -5691,10 +5571,9 @@ constexpr std::optional<std::size_t>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return convert_unicode_to_ascii_append_no_error(sv, str_to_append_to_arg);
+    return convert_unicode_to_ascii_append_no_error(
+        basic_string_view<InputChar>(&char_arg, 1), str_to_append_to_arg
+    );
 }
 
 template <typename ArgType>
@@ -5771,17 +5650,12 @@ constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using ResultType = std::basic_string<OutputChar>;
-    ResultType output_string;
-    auto       res = convert_ascii_to_unicode_append(str_arg, output_string);
-    if (res.has_value())
-    {
-        return unexpected(res.value());
-    }
-    else
-    {
-        return output_string;
-    }
+    return run_append<basic_string<OutputChar>>(
+        [&](auto& output_arg)
+        {
+            return convert_ascii_to_unicode_append(str_arg, output_arg);
+        }
+    );
 }
 
 template <typename OutputChar, typename ArgType>
@@ -5828,15 +5702,7 @@ constexpr std::optional<std::basic_string<OutputChar>>
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    auto res = convert_ascii_to_unicode<OutputChar>(str_arg);
-    if (res.has_value())
-    {
-        return make_optional(res.value());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    return to_optional(convert_ascii_to_unicode<OutputChar>(str_arg));
 }
 
 template <typename OutputChar, typename ArgType>
@@ -5851,14 +5717,7 @@ constexpr std::optional<std::size_t>
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     auto res = convert_ascii_to_unicode_append<OutputChar>(str_arg, output_arg);
-    if (res.has_value())
-    {
-        return make_optional(res.value().get_index());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    return (res.has_value()) ? make_optional(res.value().get_index()) : nullopt;
 }
 
 template <typename OutputChar>
@@ -5869,10 +5728,9 @@ constexpr ascii_to_unicode_result<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const char                    char_arr[2] = {char_arg, char{}};
-    const basic_string_view<char> sv(char_arr, 1);
-    return convert_ascii_to_unicode<OutputChar>(sv);
+    return convert_ascii_to_unicode<OutputChar>(
+        basic_string_view<char>(&char_arg, 1)
+    );
 }
 
 template <typename OutputChar>
@@ -5884,10 +5742,9 @@ constexpr std::optional<ascii_to_unicode_error>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const char                    char_arr[2] = {char_arg, char{}};
-    const basic_string_view<char> sv(char_arr, 1);
-    return convert_ascii_to_unicode_append(sv, output_arg);
+    return convert_ascii_to_unicode_append(
+        basic_string_view<char>(&char_arg, 1), output_arg
+    );
 }
 
 template <typename OutputChar>
@@ -5898,10 +5755,9 @@ constexpr std::optional<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const char                    char_arr[2] = {char_arg, char{}};
-    const basic_string_view<char> sv(char_arr, 1);
-    return convert_ascii_to_unicode_no_error<OutputChar>(sv);
+    return convert_ascii_to_unicode_no_error<OutputChar>(
+        basic_string_view<char>(&char_arg, 1)
+    );
 }
 
 template <typename OutputChar>
@@ -5913,10 +5769,9 @@ constexpr std::optional<std::size_t>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const char                    char_arr[2] = {char_arg, char{}};
-    const basic_string_view<char> sv(char_arr, 1);
-    return convert_ascii_to_unicode_append_no_error(sv, output_arg);
+    return convert_ascii_to_unicode_append_no_error(
+        basic_string_view<char>(&char_arg, 1), output_arg
+    );
 }
 
 template <typename OutputChar, typename ArgType>
@@ -5991,16 +5846,13 @@ constexpr unicode_conversion_result<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    basic_string<OutputChar> output_str;
-    auto result = unicode_conversion_append(str_arg, output_str);
-    if (result.has_value())
-    {
-        return unexpected(result.value());
-    }
-    else
-    {
-        return output_str;
-    }
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return run_append<basic_string<OutputChar>>(
+        [&](auto& output_arg)
+        {
+            return unicode_conversion_append(str_arg, output_arg);
+        }
+    );
 }
 
 template <typename OutputChar, typename ArgType>
@@ -6058,15 +5910,8 @@ constexpr std::optional<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    auto result = unicode_conversion<OutputChar>(str_arg);
-    if (result.has_value())
-    {
-        return make_optional(result.value());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return to_optional(unicode_conversion<OutputChar>(str_arg));
 }
 
 template <typename OutputChar, typename ArgType>
@@ -6083,14 +5928,9 @@ constexpr std::optional<std::size_t>
 {
     using namespace std;
     auto result = unicode_conversion_append(str_arg, output_arg);
-    if (result.has_value())
-    {
-        return make_optional(result.value().partial_output_size());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    return result.has_value()
+               ? make_optional(result.value().partial_output_size())
+               : nullopt;
 }
 
 template <typename OutputChar, typename InputChar>
@@ -6101,10 +5941,9 @@ constexpr unicode_conversion_result<std::basic_string<OutputChar>>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return unicode_conversion<OutputChar>(sv);
+    return unicode_conversion<OutputChar>(
+        basic_string_view<InputChar>(&char_arg, 1)
+    );
 }
 
 template <typename OutputChar, typename InputChar>
@@ -6116,10 +5955,9 @@ constexpr std::optional<unicode_conversion_error>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return unicode_conversion_append<OutputChar>(sv, output_arg);
+    return unicode_conversion_append(
+        basic_string_view<InputChar>(&char_arg, 1), output_arg
+    );
 }
 
 template <typename OutputChar, typename InputChar>
@@ -6129,16 +5967,8 @@ constexpr std::optional<std::basic_string<OutputChar>>
         const InputChar char_arg
     ) noexcept
 {
-    using namespace std;
-    auto result = unicode_conversion<OutputChar>(char_arg);
-    if (result.has_value())
-    {
-        return make_optional(result.value());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return to_optional(unicode_conversion<OutputChar>(char_arg));
 }
 
 template <typename OutputChar, typename InputChar>
@@ -6151,14 +5981,9 @@ constexpr std::optional<std::size_t>
 {
     using namespace std;
     auto result = unicode_conversion_append(char_arg, output_arg);
-    if (result.has_value())
-    {
-        return make_optional(result.value().partial_output_size());
-    }
-    else
-    {
-        return std::nullopt;
-    }
+    return result.has_value()
+               ? make_optional(result.value().partial_output_size())
+               : nullopt;
 }
 
 template <typename OutputChar, typename ArgType>
@@ -6239,60 +6064,19 @@ constexpr bool
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using InputChar        = char_type_of_t<ArgType>;
-    auto sv                = basic_string_view<InputChar>(str_arg);
-    auto validate_u8string = [&]() -> bool
+    using InputChar = char_type_of_t<ArgType>;
+    auto str_as_sv  = basic_string_view<InputChar>(str_arg);
+    for (auto it = str_as_sv.begin(), end = str_as_sv.end(); it != end;)
     {
-        auto str_iterator_end{std::end(sv)};
-        for (auto str_iterator{std::begin(sv)};
-             str_iterator != str_iterator_end;)
+        auto result_var
+            = forward_scan_for_next_char32<false, InputChar>(it, end);
+        if (not result_var.has_value())
         {
-            auto next_char_result{forward_scan_for_next_char32<true, char8_t>(
-                str_iterator, str_iterator_end
-            )};
-            if (next_char_result.has_value())
-            {
-                auto& [character, iterator_offset]{next_char_result.value()};
-                std::advance(str_iterator, iterator_offset);
-            }
-            else
-            {
-                return false;
-            }
+            return false;
         }
-        return true;
-    };
-    if constexpr (same_as<InputChar, wchar_t>)
-    {
-        if constexpr (wchar_is_16_bit)
-        {
-            return is_valid_unicode(cast_string_view<char16_t>(sv));
-        }
-        else
-        {
-            return is_valid_unicode(cast_string_view<char32_t>(sv));
-        }
+        it += result_var->second;
     }
-    else if constexpr (same_as<InputChar, char32_t>)
-    {
-        return not if_invalid_u32string_return_char_and_position(sv).has_value(
-        );
-    }
-    else if constexpr (same_as<InputChar, char16_t>)
-    {
-        return validate_u16string_and_convert_to_u32string<false, InputChar>(sv)
-            .has_value();
-    }
-    else if constexpr (same_as<InputChar, char8_t>)
-    {
-        return validate_u8string();
-    }
-    else
-    {
-        UNICODE_BRIDGE_STATIC_ASSERT(
-            InputChar, "is_valid_unicode invalid for this character type"
-        );
-    }
+    return true;
 }
 
 template <typename InputChar>
@@ -6664,10 +6448,10 @@ constexpr std::optional<std::basic_string<OutputChar>>
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     basic_string<OutputChar> return_value;
-    using InputChar  = char_type_of_t<ArgType>;
+    using InputChar = char_type_of_t<ArgType>;
     basic_string_view<InputChar> str_as_sv(str_arg);
-    auto string_iterator{std::begin(str_as_sv)};
-    auto string_iterator_end{std::end(str_as_sv)};
+    auto                         string_iterator{std::begin(str_as_sv)};
+    auto                         string_iterator_end{std::end(str_as_sv)};
     // Move through input.
     for (; string_iterator != string_iterator_end;)
     {
@@ -6708,9 +6492,9 @@ constexpr std::optional<std::basic_string<OutputChar>>
             {
                 return nullopt;
             }
-            auto& next_char       = next_char_opt.value();
-            using arr_contents    = pair<char8_t, char8_t>;
-            arr_contents values[] = {
+            auto& next_char                        = next_char_opt.value();
+            using arr_contents                     = pair<char8_t, char8_t>;
+            static constexpr arr_contents values[] = {
                 arr_contents(u8'0', u8'\0'),
                 arr_contents{u8'a',  u8'\a'},
                 arr_contents{u8'b',  u8'\b'},
@@ -6768,20 +6552,20 @@ constexpr std::optional<std::basic_string<OutputChar>>
                 for (size_t idx{0}; idx < n_chars_to_read; ++idx)
                 {
                     // Read the nest n_chars_to_read chars.
-                    const optional<char32_t> next_char_opt{
+                    const optional<char32_t> next_char_from_itt_opt{
                         next_char32_and_increment_iterator_no_error<
                             decltype(string_iterator)>(
                             string_iterator, string_iterator_end
                         )
                     };
-                    if (not next_char_opt.has_value())
+                    if (not next_char_from_itt_opt.has_value())
                     {
                         return nullopt;
                     }
-                    auto& next_char{next_char_opt.value()};
-                    if (next_char <= ascii_limit<char32_t>())
+                    auto& next_char_from_itt{ next_char_from_itt_opt.value()};
+                    if (next_char_from_itt <= ascii_limit<char32_t>())
                     {
-                        chars_to_read[idx] = cast_ascii<char>(next_char);
+                        chars_to_read[idx] = cast_ascii<char>(next_char_from_itt);
                     }
                 }
                 // Read and convert the chars to hex.
@@ -6803,12 +6587,16 @@ constexpr std::optional<std::basic_string<OutputChar>>
                     );
                     continue;
                 }
-                size_t n_chars_added
-                    = add_char_to_unicode_string(encoded_char, return_value);
-                if (n_chars_added == 0)
+                if constexpr (sizeof(OutputChar) < sizeof(char32_t))
                 {
-                    return nullopt;
+                    // UTF-8 and UTF-16 can't encode anything beyond the Unicode
+                    // limit.
+                    if (encoded_char > char32_limit<char32_t>())
+                    {
+                        return nullopt;
+                    }
                 }
+                add_char_to_unicode_string(encoded_char, return_value);
             }
         }
     }
@@ -6823,10 +6611,9 @@ constexpr std::basic_string<OutputChar>
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    const InputChar                    char_arr[2] = {char_arg, InputChar{}};
-    const basic_string_view<InputChar> sv(char_arr, 1);
-    return to_formatted_unicode_string<OutputChar>(sv);
+    return to_formatted_unicode_string<OutputChar>(
+        basic_string_view<InputChar>(&char_arg, 1)
+    );
 }
 
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
@@ -6965,7 +6752,7 @@ constexpr forward_scan_unicode_error
     forward_scan_unicode_error_factory::
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::size_t             code_points_encountered_arg,
+            const std::uint8_t             code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept
 {
@@ -7052,14 +6839,8 @@ constexpr forward_scan_unicode_error
     return forward_scan_unicode_error(
         forward_scan_unicode_error::forward_scan_unicode_error_code::
             basic_unicode_error,
-        basic_unicode_error(
-            basic_unicode_error::basic_unicode_error_code::
-                invalid_utf32_code_point,
-            {u8'\0', u8'\0', u8'\0', u8'\0'},
-            char32_character_arg,
-            0,
-            {u'\0', u'\0'},
-            is_wchar_arg
+        basic_unicode_error_factory::invalid_utf32_code_point(
+            char32_character_arg, is_wchar_arg
         )
     );
 }
@@ -7332,57 +7113,6 @@ constexpr std::u8string
     return msg;
 }
 
-constexpr std::optional<std::pair<char32_t, std::size_t>>
-    if_invalid_u32string_return_char_and_position(
-        const std::u32string_view str_arg
-    ) noexcept
-{
-    using namespace std;
-    for (size_t idx{0}; const char32_t character : str_arg)
-    {
-        if (is_invalid_char32(character))
-        {
-            return make_optional(make_pair(character, idx));
-        }
-        ++idx;
-    }
-    return nullopt;
-}
-
-template <bool Return_u32string, typename Original_Type>
-requires char_type_is_unicode_c<Original_Type>
-constexpr forward_scan_result_t<
-    std::conditional_t<Return_u32string, std::u32string, std::monostate>>
-    validate_u16string_and_convert_to_u32string(
-        const std::u16string_view str_arg
-    ) noexcept
-{
-    using namespace std;
-    conditional_t<Return_u32string, u32string, monostate> return_value;
-    auto str_iterator_end{std::end(str_arg)};
-    for (auto str_iterator{std::begin(str_arg)};
-         str_iterator != str_iterator_end;)
-    {
-        auto next_char_result{forward_scan_for_next_char32<true, Original_Type>(
-            str_iterator, str_iterator_end
-        )};
-        if (next_char_result.has_value())
-        {
-            auto& [character, iterator_offset]{next_char_result.value()};
-            std::advance(str_iterator, iterator_offset);
-            if constexpr (Return_u32string)
-            {
-                return_value.push_back(character);
-            }
-        }
-        else
-        {
-            return unexpected(next_char_result.error());
-        }
-    }
-    return return_value;
-}
-
 template <typename T>
 requires is_wchar_and_32_bit_c<T> || std::same_as<T, char32_t>
 constexpr bool
@@ -7405,8 +7135,8 @@ constexpr std::size_t
     return str_arg.size() - size_before;
 }
 
-template <typename OutChar, typename Out>
-requires is_char_type_c<OutChar> && std::output_iterator<Out, OutChar>
+template <typename OutputChar, typename Out>
+requires is_char_type_c<OutputChar> && std::output_iterator<Out, OutputChar>
 constexpr Out
     encode_char32(
         const char32_t char_arg,
@@ -7416,23 +7146,21 @@ constexpr Out
     using namespace std;
     auto put = [&](const char32_t unit_arg)
     {
-        *out_arg++ = static_cast<OutChar>(unit_arg);
+        *out_arg = static_cast<OutputChar>(unit_arg);
+        ++out_arg;
     };
-    if constexpr (same_as<OutChar, char32_t> || is_wchar_and_32_bit_c<OutChar>)
+    if constexpr (sizeof(OutputChar) == sizeof(char32_t))
     {
         put(char_arg);
     }
-    else if constexpr (same_as<OutChar, char16_t>
-                       || is_wchar_and_16_bit_c<OutChar>)
+    else if constexpr (sizeof(OutputChar) == sizeof(char16_t))
     {
         if (char_arg <= single_char16_limit_and_three_char8_limit<char32_t>())
         {
-            // BMP, including lone surrogates.
             put(char_arg);
         }
         else if (char_arg <= char32_limit<char32_t>())
         {
-            // Supplementary plane: surrogate pair.
             const char32_t offset{
                 char_arg - char16_offset_for_char32_conversion<char32_t>()
             };
@@ -7442,10 +7170,11 @@ constexpr Out
         }
         else
         {
+            // Cannot be encoded into a UTF16 character.
             std::unreachable();
         }
     }
-    else if constexpr (same_as<OutChar, char8_t> || same_as<OutChar, char>)
+    else if constexpr (sizeof(OutputChar) == sizeof(char8_t))
     {
         constexpr char32_t continuation{0b1000'0000};
         constexpr char32_t six_bits{0b0011'1111};
@@ -7474,13 +7203,14 @@ constexpr Out
         }
         else
         {
+            // Cannot be encoded into UTF8.
             std::unreachable();
         }
     }
     else
     {
         UNICODE_BRIDGE_STATIC_ASSERT(
-            OutChar, "encode_char32: unsupported output character type"
+            OutputChar, "encode_char32: unsupported output character type"
         );
     }
     return out_arg;
@@ -7553,18 +7283,7 @@ constexpr std::conditional_t<
 {
     using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    using CharT               = std::iterator_traits<T>::value_type;
-    auto is_continuation_byte = [](const char8_t char_arg)
-    {
-        return (char_arg & 0b1100'0000) == 0b1000'0000;
-    };
-    auto is_leading_byte = [](const char8_t char_arg)
-    {
-        return is_valid_ascii(char_arg)
-               || (char_arg & 0b1110'0000) == 0b1100'0000  // 2-byte
-               || (char_arg & 0b1111'0000) == 0b1110'0000  // 3-byte
-               || (char_arg & 0b1111'1000) == 0b1111'0000; // 4-byte
-    };
+    using CharT = std::iterator_traits<T>::value_type;
     if (iterator_arg == iterator_begin_arg)
     {
         if constexpr (Return_Reason)
@@ -7580,7 +7299,6 @@ constexpr std::conditional_t<
     if constexpr (same_as<CharT, char32_t> || is_wchar_and_32_bit_c<CharT>)
     {
         return process_utf32<
-            false,
             Return_Reason,
             Original_Value_Type,
             prev_char32_error_factory,
@@ -7654,7 +7372,7 @@ constexpr std::conditional_t<
             --scan;
             const char8_t byte{*scan};
 
-            if (is_continuation_byte(byte))
+            if (is_utf8_continuation_byte(byte))
             {
                 ++n_continuation;
                 if (n_continuation > 3)
@@ -7663,51 +7381,10 @@ constexpr std::conditional_t<
                     // found
                     if constexpr (Return_Reason)
                     {
-                        std::array<char8_t, 4> code_units
-                            = {static_cast<char8_t>(*(iterator_arg - 4)),
-                               static_cast<char8_t>(*(iterator_arg - 3)),
-                               static_cast<char8_t>(*(iterator_arg - 2)),
-                               static_cast<char8_t>(*(iterator_arg - 1))};
                         return unexpected(
                             prev_char32_error_factory::
-                                no_valid_leading_byte_found(code_units)
-                        );
-                    }
-                    else
-                    {
-                        return nullopt;
-                    }
-                }
-            }
-            else if (is_valid_ascii(byte) || is_leading_byte(byte))
-            {
-                const size_t expected
-                    = is_valid_ascii(byte)                  ? 0
-                      : (byte & 0b1110'0000) == 0b1100'0000 ? 1
-                      : (byte & 0b1111'0000) == 0b1110'0000 ? 2
-                                                            : 3;
-
-                if (expected != n_continuation)
-                {
-                    if constexpr (Return_Reason)
-                    {
-                        std::array<char8_t, 4> code_units
-                            = {static_cast<char8_t>(*scan),
-                               (n_continuation > 0)
-                                   ? static_cast<char8_t>(*(scan + 1))
-                                   : u8'\0',
-                               (n_continuation > 1)
-                                   ? static_cast<char8_t>(*(scan + 2))
-                                   : u8'\0',
-                               (n_continuation > 2)
-                                   ? static_cast<char8_t>(*(scan + 3))
-                                   : u8'\0'};
-                        return unexpected(
-                            prev_char32_error_factory::
-                                leading_byte_sequence_length_mismatch(
-
-                                    code_units,
-                                    static_cast<uint8_t>(n_continuation)
+                                no_valid_leading_byte_found(
+                                    u8_units_to_arr(iterator_arg - 4, 4)
                                 )
                         );
                     }
@@ -7716,54 +7393,70 @@ constexpr std::conditional_t<
                         return nullopt;
                     }
                 }
-
-                // Valid sequence found - decode it
-                const size_t sequence_length = n_continuation + 1;
-                char32_t     code_point
-                    = leading_byte_data_bits(*scan, sequence_length);
-                // Accumulate continuation bytes - validity already
-                // checked by caller
-                T local{scan};
-                for (size_t idx{0}; idx < sequence_length - 1; ++idx)
-                {
-                    ++local;
-                    accumulate_continuation_byte(
-                        code_point, static_cast<char8_t>(*local)
-                    );
-                }
-                return check_decoded_utf8_codepoint<
-                    Return_Reason,
-                    Original_Value_Type,
-                    prev_char32_error_factory,
-                    prev_char32_error>(
-                    scan, iterator_begin_arg, local, sequence_length, code_point
-                );
             }
             else
             {
-                // Non-continuation, non-leading byte encountered
-                // mid-scan
-                if constexpr (Return_Reason)
+                const size_t sequence_length = utf8_sequence_length(byte);
+                if (sequence_length != 0)
                 {
-                    std::array<char8_t, 4> code_units = {
-                        static_cast<char8_t>(*scan),
-                        (n_continuation > 0) ? static_cast<char8_t>(*(scan + 1))
-                                             : u8'\0',
-                        (n_continuation > 1) ? static_cast<char8_t>(*(scan + 2))
-                                             : u8'\0',
-                        (n_continuation > 2) ? static_cast<char8_t>(*(scan + 3))
-                                             : u8'\0'
-                    };
-                    return unexpected(
-                        prev_char32_error_factory::invalid_utf8_byte(
-
-                            code_units, n_continuation
-                        )
+                    if (sequence_length - 1 != n_continuation)
+                    {
+                        if constexpr (Return_Reason)
+                        {
+                            return unexpected(
+                                prev_char32_error_factory::
+                                    leading_byte_sequence_length_mismatch(
+                                        u8_units_to_arr(
+                                            scan, n_continuation + 1
+                                        ),
+                                        static_cast<uint8_t>(n_continuation)
+                                    )
+                            );
+                        }
+                        else
+                        {
+                            return nullopt;
+                        }
+                    }
+                    char32_t code_point
+                        = leading_byte_data_bits(*scan, sequence_length);
+                    // Accumulate continuation bytes - validity already
+                    // checked by caller
+                    T local{scan};
+                    for (size_t idx{0}; idx < sequence_length - 1; ++idx)
+                    {
+                        ++local;
+                        accumulate_continuation_byte(
+                            code_point, static_cast<char8_t>(*local)
+                        );
+                    }
+                    return check_decoded_utf8_codepoint<
+                        Return_Reason,
+                        Original_Value_Type,
+                        prev_char32_error_factory,
+                        prev_char32_error>(
+                        scan,
+                        sequence_length,
+                        code_point
                     );
                 }
                 else
                 {
-                    return nullopt;
+                    // Non-continuation, non-leading byte encountered
+                    // mid-scan
+                    if constexpr (Return_Reason)
+                    {
+                        return unexpected(
+                            prev_char32_error_factory::invalid_utf8_byte(
+                                u8_units_to_arr(scan, n_continuation + 1),
+                                static_cast<uint8_t>(n_continuation)
+                            )
+                        );
+                    }
+                    else
+                    {
+                        return nullopt;
+                    }
                 }
             }
         }
@@ -7771,17 +7464,10 @@ constexpr std::conditional_t<
         // Reached iterator_begin_arg without finding a leading byte
         if constexpr (Return_Reason)
         {
-            std::array<char8_t, 4> code_units
-                = {static_cast<char8_t>(*scan),
-                   (n_continuation > 1) ? static_cast<char8_t>(*(scan + 1))
-                                        : u8'\0',
-                   (n_continuation > 2) ? static_cast<char8_t>(*(scan + 2))
-                                        : u8'\0',
-                   (n_continuation > 3) ? static_cast<char8_t>(*(scan + 3))
-                                        : u8'\0'};
             return unexpected(prev_char32_error_factory::
                                   iterator_begin_reached_before_leading_byte(
-                                      code_units, n_continuation
+                                      u8_units_to_arr(scan, n_continuation),
+                                      n_continuation
                                   ));
         }
         else
@@ -7823,10 +7509,6 @@ constexpr std::conditional_t<
     {
         auto       local_iterator{iterator_arg};
         const auto byte_1{*local_iterator};
-        auto       is_not_continuation_byte = [](const char8_t char_arg)
-        {
-            return (char_arg & 0b1100'0000) != 0b1000'0000;
-        };
         if (not (is_valid_ascii(byte_1)))
         {
             size_t code_point_size = utf8_sequence_length(byte_1);
@@ -7858,18 +7540,12 @@ constexpr std::conditional_t<
                             sub_error_offsets[code_point_size - 2]
                             + (code_units_processed_remaining - 1)
                         );
-                    std::array<char8_t, 4> code_units
-                        = {static_cast<char8_t>(byte_1),
-                           code_units_processed_remaining >= 2
-                               ? static_cast<char8_t>(*(local_iterator + 1))
-                               : u8'\0',
-                           code_units_processed_remaining >= 3
-                               ? static_cast<char8_t>(*(local_iterator + 2))
-                               : u8'\0',
-                           u8'\0'};
                     return unexpected(
                         forward_scan_unicode_error_factory::truncated_sequence(
-                            code_units, sub_error
+                            u8_units_to_arr(
+                                local_iterator, code_units_processed_remaining
+                            ),
+                            sub_error
                         )
                     );
                 }
@@ -7882,20 +7558,10 @@ constexpr std::conditional_t<
             {
                 ++local_iterator;
                 const auto byte_n{*local_iterator};
-                if (is_not_continuation_byte(byte_n))
+                if (not is_utf8_continuation_byte(byte_n))
                 {
                     if constexpr (Return_Reason)
                     {
-                        std::array<char8_t, 4> code_units{
-                            static_cast<char8_t>(*iterator_arg),
-                            static_cast<char8_t>(*(iterator_arg + 1)),
-                            (code_point_size > 2)
-                                ? static_cast<char8_t>(*(iterator_arg + 2))
-                                : u8'\0',
-                            (code_point_size > 3)
-                                ? static_cast<char8_t>(*(iterator_arg + 3))
-                                : u8'\0',
-                        };
                         using enum forward_scan_unicode_error::
                             invalid_continuation_byte_sub_error;
                         forward_scan_unicode_error::
@@ -7907,7 +7573,7 @@ constexpr std::conditional_t<
                             break;
                         case 3:
                             sub_error = (idx == 0)
-                                            ? (is_not_continuation_byte(
+                                            ? (not is_utf8_continuation_byte(
                                                    *(local_iterator + 1)
                                                )
                                                    ? size_3_invalid_indexes_1_2
@@ -7920,11 +7586,11 @@ constexpr std::conditional_t<
                             case 0:
                             {
                                 const bool third_invalid
-                                    = is_not_continuation_byte(
+                                    = not is_utf8_continuation_byte(
                                         *(local_iterator + 1)
                                     );
                                 const bool fourth_invalid
-                                    = is_not_continuation_byte(
+                                    = not is_utf8_continuation_byte(
                                         *(local_iterator + 2)
                                     );
                                 if (third_invalid && fourth_invalid)
@@ -7946,7 +7612,7 @@ constexpr std::conditional_t<
                             }
                             break;
                             case 1:
-                                sub_error = is_not_continuation_byte(
+                                sub_error = not is_utf8_continuation_byte(
                                                 *(local_iterator + 1)
                                             )
                                                 ? size_4_invalid_indexes_2_3
@@ -7957,10 +7623,14 @@ constexpr std::conditional_t<
                             }
                             break;
                         }
-                        return unexpected(
-                            forward_scan_unicode_error_factory::
-                                invalid_continuation_byte(code_units, sub_error)
-                        );
+                        return unexpected(forward_scan_unicode_error_factory::
+                                              invalid_continuation_byte(
+                                                  u8_units_to_arr(
+                                                      iterator_arg,
+                                                      code_point_size
+                                                  ),
+                                                  sub_error
+                                              ));
                     }
                     else
                     {
@@ -7975,8 +7645,6 @@ constexpr std::conditional_t<
                 forward_scan_unicode_error_factory,
                 forward_scan_unicode_error>(
                 iterator_arg,
-                local_iterator,
-                local_iterator,
                 code_point_size,
                 code_point
             );
@@ -8060,7 +7728,6 @@ constexpr std::conditional_t<
     else if constexpr (same_as<CharT, char32_t> || is_wchar_and_32_bit_c<CharT>)
     {
         return process_utf32<
-            true,
             Return_Reason,
             Original_Value_Type,
             forward_scan_unicode_error_factory,
@@ -8326,6 +7993,5 @@ constexpr std::optional<std::u8string>
                  )
                : nullopt;
 }
-
 UNICODE_BRIDGE_INTERNAL_NS_END
 UNICODE_BRIDGE_NS_END
