@@ -316,6 +316,7 @@ struct forward_scan_unicode_error_factory;
 struct unicode_to_ascii_error_factory;
 struct prev_char32_error_factory;
 struct next_char32_error_factory;
+struct from_formatted_string_error_factory;
 UNICODE_BRIDGE_INTERNAL_NS_END
 // ---- Type Synonyms ----
 /*!
@@ -607,7 +608,7 @@ public:
      * @brief Gets the object's code variable.
      * @return The object's code variable.
      */
-    constexpr const basic_unicode_error_code
+    constexpr basic_unicode_error_code
         code() const noexcept;
     /*!
      * @brief Gets the object's u8_code_points variable.
@@ -1414,6 +1415,38 @@ public:
      */
     constexpr std::u8string
         message() const;
+};
+
+struct from_formatted_string_error
+{
+public:
+    // ---- Friend types ----
+    friend struct UNICODE_BRIDGE_NAMESPACE_INTERNAL::
+        from_formatted_string_error_factory;
+    enum class error_code
+    {
+        invalid_unicode_char,
+        ascii_out_of_range,
+        escape_char_then_unable_to_extract_unicode,
+        ascii_unrecognised_escape_char,
+        unicode_unrecognised_escape_char,
+        reading_hex_unable_to_extract_unicode,
+        invalid_hex_digits,
+        invalid_unicode_after_conversion
+    };
+private:
+    error_code                 _code;
+    next_char32_error          _next_char32_error;
+    std::array<std::size_t, 2> _numeric_values;
+    std::string                _string;
+    char32_t                   _char32;
+    constexpr from_formatted_string_error(
+        error_code                       code_arg,
+        const next_char32_error&         next_char32_error_arg,
+        const std::string_view           string_arg,
+        const std::array<std::size_t, 2> numeric_values_arg,
+        const char32_t                   char32_arg
+    ) noexcept;
 };
 
 /*!
@@ -2517,17 +2550,6 @@ requires is_char_type_c<char_type_of_t<ArgType>>
          && is_char_type_c<OutputChar>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(ArgType str_arg) noexcept;
-
-
-template <typename OutputChar, typename ArgType>
-requires is_char_type_c<char_type_of_t<ArgType>>
-         && std::convertible_to<
-             ArgType,
-             std::basic_string_view<char_type_of_t<ArgType>>>
-         && is_char_type_c<OutputChar>
-constexpr std::optional<std::basic_string<OutputChar>>
-    from_formatted_unicode_string(ArgType str_arg) noexcept;
-
 /*!
  * @brief Creates a formatted Unicode string from a single arbitrary
  character.
@@ -2575,6 +2597,43 @@ template <typename OutputChar, typename InputChar>
 requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
 constexpr std::basic_string<OutputChar>
     to_formatted_unicode_string(const InputChar char_arg) noexcept;
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::optional<std::basic_string<OutputChar>>
+    from_formatted_unicode_string_no_error(ArgType str_arg) noexcept;
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::
+    expected<std::basic_string<OutputChar>, from_formatted_string_error>
+    from_formatted_unicode_string(ArgType str_arg) noexcept;
+template <typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::expected<
+    std::pair<std::basic_string<OutputChar>, ItteratorType>,
+    from_formatted_string_error>
+    next_formatted_unicode_char(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept;
+template <bool Return_Reason, typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::optional<std::pair<std::basic_string<OutputChar>, ItteratorType>>
+    next_formatted_unicode_char_no_error(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept;
 
 template <typename OutputChar, typename InputChar>
 requires is_char_type_c<OutputChar> && is_char_type_c<InputChar>
@@ -2939,7 +2998,7 @@ struct forward_scan_unicode_error_factory
     static constexpr forward_scan_unicode_error
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::uint8_t             code_points_encountered_arg,
+            const std::uint8_t            code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept;
 
@@ -3011,6 +3070,36 @@ struct next_char32_error_factory
         iterator_exhausted() noexcept;
 };
 
+struct from_formatted_string_error_factory
+{
+    static constexpr from_formatted_string_error
+        invalid_unicode_char(const next_char32_error& next_char32_error_arg
+        ) noexcept;
+    static constexpr from_formatted_string_error
+        ascii_out_of_range(const char32_t next_char32_arg) noexcept;
+    static constexpr from_formatted_string_error
+        escape_char_then_unable_to_extract_unicode(
+            const next_char32_error& next_char32_error_arg
+        ) noexcept;
+    static constexpr from_formatted_string_error
+        ascii_unrecognised_escape_char(const char32_t next_char32_arg) noexcept;
+    static constexpr from_formatted_string_error
+        unicode_unrecognised_escape_char(const char32_t next_char32_arg
+        ) noexcept;
+    static constexpr from_formatted_string_error
+        reading_hex_unable_to_extract_unicode(
+            const next_char32_error& next_char32_error_arg,
+            const std::size_t        idx_arg,
+            const std::size_t        n_chars_to_read_arg
+        ) noexcept;
+    static constexpr from_formatted_string_error
+        invalid_hex_digits(const std::string_view chars_to_read_arg) noexcept;
+    static constexpr from_formatted_string_error
+        invalid_unicode_after_conversion(
+            const std::string_view chars_to_read_arg
+        );
+};
+
 struct prev_char32_error_factory
 {
     static constexpr prev_char32_error
@@ -3032,7 +3121,7 @@ struct prev_char32_error_factory
     static constexpr prev_char32_error
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::uint8_t             code_points_encountered_arg,
+            const std::uint8_t            code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept
     {
@@ -3167,7 +3256,7 @@ struct prev_char32_error_factory
     static constexpr prev_char32_error
         invalid_utf8_byte(
             const std::array<char8_t, 4>& char8_arr_arg,
-            const std::uint8_t             n_bytes_arg
+            const std::uint8_t            n_bytes_arg
         ) noexcept
     {
         return prev_char32_error(
@@ -3186,7 +3275,7 @@ struct prev_char32_error_factory
     static constexpr prev_char32_error
         iterator_begin_reached_before_leading_byte(
             const std::array<char8_t, 4>& char8_arr_arg,
-            const std::size_t             n_bytes_arg
+            const std::uint8_t            n_bytes_arg
         ) noexcept
     {
         return prev_char32_error(
@@ -3525,7 +3614,6 @@ constexpr std::conditional_t<
     next_char32_result<std::pair<char32_t, std::size_t>>,
     std::optional<std::pair<char32_t, std::size_t>>>
     next_char32_internal_with_iterator_checking(
-        const T iterator_begin_arg,
         const T iterator_arg,
         const T itt_end_arg
     ) noexcept;
@@ -3603,6 +3691,31 @@ constexpr std::conditional_t<
         const T iterator_arg,
         const T iterator_begin_arg
     ) noexcept;
+template <bool Return_Reason, typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::conditional_t<
+    Return_Reason,
+    std::expected<std::basic_string<OutputChar>, from_formatted_string_error>,
+    std::optional<std::basic_string<OutputChar>>>
+    from_formatted_unicode_string_internal(ArgType str_arg) noexcept;
+template <bool Return_Reason, typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::conditional_t<
+    Return_Reason,
+    std::expected<
+        std::pair<std::basic_string<OutputChar>, ItteratorType>,
+        from_formatted_string_error>,
+    std::optional<std::pair<std::basic_string<OutputChar>, ItteratorType>>>
+    next_formatted_unicode_char_internal(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept;
 template <bool Return_Reason, typename Original_Value_Type, typename T>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Value_Type>
@@ -3619,11 +3732,8 @@ constexpr std::conditional_t<
     Return_Reason,
     next_char32_result<char32_t>,
     std::optional<char32_t>>
-    next_char32_and_increment_iterator(
-        const T iterator_begin_arg,
-        T&      iterator_arg,
-        const T itt_end_arg
-    ) noexcept;
+    next_char32_and_increment_iterator(T& iterator_arg, const T itt_end_arg)
+        noexcept;
 template <bool Return_Reason, typename T, typename Original_Type>
 requires char_type_is_unicode_c<typename std::iterator_traits<T>::value_type>
          && char_type_is_unicode_c<Original_Type>
@@ -3726,6 +3836,7 @@ constexpr std::conditional_t<
     }
     return make_pair(code_point_arg, sequence_length_arg);
 }
+
 template <typename T>
 requires char_type_is_unicode_c<T> && (sizeof(T) >= 4)
 constexpr T char16_offset_for_char32_conversion() noexcept;
@@ -3859,12 +3970,14 @@ constexpr std::u8string
         return chars_as_hex;
     }
 }
+
 constexpr std::u8string_view
     ending_msg() noexcept
 {
     return u8"cannot represent a valid Unicode scalar "
            u8"value, and the function was terminated.";
 }
+
 UNICODE_BRIDGE_INTERNAL_NS_END
 UNICODE_BRIDGE_NS_END
 
@@ -4118,7 +4231,7 @@ constexpr std::u8string
     return msg;
 }
 
-constexpr const basic_unicode_error::basic_unicode_error_code
+constexpr basic_unicode_error::basic_unicode_error_code
     basic_unicode_error::code() const noexcept
 {
     return _code;
@@ -4572,6 +4685,20 @@ constexpr std::u8string
     );
 }
 
+constexpr from_formatted_string_error::from_formatted_string_error(
+    error_code                       code_arg,
+    const next_char32_error&         next_char32_error_arg,
+    const std::string_view           string_arg,
+    const std::array<std::size_t, 2> numeric_values_arg,
+    const char32_t                   char32_arg
+) noexcept
+    : _code(code_arg)
+    , _next_char32_error(next_char32_error_arg)
+    , _string(string_arg)
+    , _numeric_values(numeric_values_arg)
+    , _char32(char32_arg)
+{}
+
 template <typename Error_Type>
 requires is_error_type_c<Error_Type>
 constexpr unicode_bridge_exception<Error_Type>::unicode_bridge_exception(
@@ -4763,7 +4890,7 @@ constexpr ascii_to_unicode_error::ascii_to_unicode_error(
     const std::size_t index_arg,
     const char        character_arg
 ) noexcept
-    : _index(index_arg), _character(character_arg)
+    : _character(character_arg), _index(index_arg)
 {}
 
 constexpr char
@@ -5410,7 +5537,7 @@ constexpr std::optional<unicode_to_ascii_error>
         // through slower next_char32_t_and_increment_iterator.
         if (is_valid_ascii(character))
         {
-            str_inserter = character;
+            str_inserter = static_cast<char>(character);
             ++string_iterator;
             ++chars_written;
         }
@@ -6166,7 +6293,7 @@ constexpr next_char32_result<std::pair<char32_t, std::size_t>>
     return next_char32_internal_with_iterator_checking<
         true,
         ItteratorType,
-        CharT>(iterator_arg, iterator_arg, itt_end_arg);
+        CharT>(iterator_arg, itt_end_arg);
 }
 
 template <typename ItteratorType>
@@ -6184,7 +6311,7 @@ constexpr std::optional<std::pair<char32_t, std::size_t>>
     return next_char32_internal_with_iterator_checking<
         false,
         ItteratorType,
-        CharT>(iterator_arg, iterator_arg, itt_end_arg);
+        CharT>(iterator_arg, itt_end_arg);
 }
 
 template <typename ItteratorType>
@@ -6200,7 +6327,7 @@ constexpr next_char32_result<char32_t>
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = std::iterator_traits<ItteratorType>::value_type;
     return next_char32_and_increment_iterator<true, ItteratorType, CharT>(
-        iterator_arg, iterator_arg, itt_end_arg
+        iterator_arg, itt_end_arg
     );
 }
 
@@ -6217,7 +6344,7 @@ constexpr std::optional<char32_t>
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using CharT = std::iterator_traits<ItteratorType>::value_type;
     return next_char32_and_increment_iterator<false, ItteratorType, CharT>(
-        iterator_arg, iterator_arg, itt_end_arg
+        iterator_arg, itt_end_arg
     );
 }
 
@@ -6391,7 +6518,7 @@ constexpr std::basic_string<OutputChar>
         if (auto special_char
             = special_char_as_string<InputChar, padding, prefix>(char_arg))
         {
-            append_ascii(return_value, *special_char);
+            append_ascii(return_value, special_char.value());
             return;
         }
         if constexpr (same_as<OutputChar, char>)
@@ -6441,166 +6568,62 @@ requires is_char_type_c<char_type_of_t<ArgType>>
              std::basic_string_view<char_type_of_t<ArgType>>>
          && is_char_type_c<OutputChar>
 constexpr std::optional<std::basic_string<OutputChar>>
+    from_formatted_unicode_string_no_error(
+        ArgType str_arg
+    ) noexcept
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return from_formatted_unicode_string_internal<false, OutputChar>(str_arg);
+}
+
+template <typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::
+    expected<std::basic_string<OutputChar>, from_formatted_string_error>
     from_formatted_unicode_string(
         ArgType str_arg
     ) noexcept
 {
-    using namespace std;
     using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
-    basic_string<OutputChar> return_value;
-    using InputChar = char_type_of_t<ArgType>;
-    basic_string_view<InputChar> str_as_sv(str_arg);
-    auto                         string_iterator{std::begin(str_as_sv)};
-    auto                         string_iterator_end{std::end(str_as_sv)};
-    // Move through input.
-    for (; string_iterator != string_iterator_end;)
-    {
-        // Grab next char32_t.
-        const optional<char32_t> character_opt{
-            next_char32_and_increment_iterator_no_error<decltype(string_iterator
-            )>(string_iterator, string_iterator_end)
-        };
-        if (not character_opt.has_value())
-        {
-            return nullopt;
-        }
-        auto& char_var = character_opt.value();
-        if (char_var != u8'\\')
-        {
-            if constexpr (same_as<OutputChar, char>)
-            {
-                if (char_var > ascii_limit<char32_t>())
-                {
-                    return nullopt;
-                }
-                append_ascii(return_value, char_var);
-            }
-            else
-            {
-                add_char_to_unicode_string(char_var, return_value);
-            }
-        }
-        else
-        {
-            const optional<char32_t> next_char_opt{
-                next_char32_and_increment_iterator_no_error<
-                    decltype(string_iterator)>(
-                    string_iterator, string_iterator_end
-                )
-            };
-            if (not next_char_opt.has_value())
-            {
-                return nullopt;
-            }
-            auto& next_char                        = next_char_opt.value();
-            using arr_contents                     = pair<char8_t, char8_t>;
-            static constexpr arr_contents values[] = {
-                arr_contents(u8'0', u8'\0'),
-                arr_contents{u8'a',  u8'\a'},
-                arr_contents{u8'b',  u8'\b'},
-                arr_contents{u8't',  u8'\t'},
-                arr_contents{u8'n',  u8'\n'},
-                arr_contents{u8'v',  u8'\v'},
-                arr_contents{u8'f',  u8'\f'},
-                arr_contents{u8'r',  u8'\r'},
-                arr_contents{u8'"',  u8'"' },
-                arr_contents{u8'\'', u8'\''},
-                arr_contents{u8'\\', u8'\\'},
-            };
-            // If it matches any of the special characters, that's what
-            // is outputted.
-            const auto it
-                = ranges::find(values, next_char, &arr_contents::first);
-            if (it != ranges::end(values))
-            {
-                // All special chars are ASCII.
-                append_ascii(return_value, it->second);
-            }
-            else
-            {
-                // Getting ready to read some hex. First check that the
-                // letter is correct for the character type, and set how
-                // many hex chars to read.
-                size_t n_chars_to_read;
-                if constexpr (same_as<OutputChar, char>)
-                {
-                    if (next_char != U'x')
-                    {
-                        return nullopt;
-                    }
-                    n_chars_to_read = 2;
-                }
-                else
-                {
-                    switch (next_char)
-                    {
-                    case U'x':
-                        n_chars_to_read = 2;
-                        break;
-                    case U'u':
-                        n_chars_to_read = 4;
-                        break;
-                    case U'U':
-                        n_chars_to_read = 8;
-                        break;
-                    default:
-                        return nullopt;
-                    }
-                }
-                string   chars_to_read(n_chars_to_read, '\0');
-                uint32_t underlying_uint;
-                for (size_t idx{0}; idx < n_chars_to_read; ++idx)
-                {
-                    // Read the nest n_chars_to_read chars.
-                    const optional<char32_t> next_char_from_itt_opt{
-                        next_char32_and_increment_iterator_no_error<
-                            decltype(string_iterator)>(
-                            string_iterator, string_iterator_end
-                        )
-                    };
-                    if (not next_char_from_itt_opt.has_value())
-                    {
-                        return nullopt;
-                    }
-                    auto& next_char_from_itt{ next_char_from_itt_opt.value()};
-                    if (next_char_from_itt <= ascii_limit<char32_t>())
-                    {
-                        chars_to_read[idx] = cast_ascii<char>(next_char_from_itt);
-                    }
-                }
-                // Read and convert the chars to hex.
-                auto [ptr, ec] = std::from_chars(
-                    chars_to_read.data(),
-                    chars_to_read.data() + n_chars_to_read,
-                    underlying_uint,
-                    16
-                );
-                if (ec != std::errc()
-                    || ptr != chars_to_read.data() + n_chars_to_read)
-                {
-                    return nullopt;
-                }
-                char32_t encoded_char = static_cast<char32_t>(underlying_uint);
-                if (next_char == U'x')
-                {
-                    return_value.push_back(static_cast<OutputChar>(encoded_char)
-                    );
-                    continue;
-                }
-                if constexpr (sizeof(OutputChar) < sizeof(char32_t))
-                {
-                    // UTF-8 and UTF-16 can't encode anything beyond the Unicode
-                    // limit.
-                    if (encoded_char > char32_limit<char32_t>())
-                    {
-                        return nullopt;
-                    }
-                }
-                add_char_to_unicode_string(encoded_char, return_value);
-            }
-        }
-    }
-    return return_value;
+    return from_formatted_unicode_string_internal<true, OutputChar>(str_arg);
+}
+
+template <typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::expected<
+    std::pair<std::basic_string<OutputChar>, ItteratorType>,
+    from_formatted_string_error>
+    next_formatted_unicode_char(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return next_formatted_unicode_char_internal<true, OutputChar>(
+        iterator_arg, itt_end_arg
+    );
+}
+
+template <bool Return_Reason, typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::optional<std::pair<std::basic_string<OutputChar>, ItteratorType>>
+    next_formatted_unicode_char_no_error(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    return next_formatted_unicode_char_internal<false, OutputChar>(
+        iterator_arg, itt_end_arg
+    );
 }
 
 template <typename OutputChar, typename InputChar>
@@ -6752,7 +6775,7 @@ constexpr forward_scan_unicode_error
     forward_scan_unicode_error_factory::
         invalid_utf32_code_point_after_utf8_conversion(
             const std::array<char8_t, 4>& u8_code_points_arg,
-            const std::uint8_t             code_points_encountered_arg,
+            const std::uint8_t            code_points_encountered_arg,
             const char32_t                char32_character_arg
         ) noexcept
 {
@@ -6984,6 +7007,125 @@ constexpr next_char32_error
                 false
             )
         )
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::invalid_unicode_char(
+        const next_char32_error& next_char32_error_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::invalid_unicode_char,
+        next_char32_error_arg,
+        std::string_view(),
+        {0, 0},
+        U'\0'
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::ascii_out_of_range(
+        const char32_t next_char32_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::ascii_out_of_range,
+        next_char32_error_factory::iterator_exhausted(),
+        std::string_view(),
+        {0, 0},
+        next_char32_arg
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::
+        escape_char_then_unable_to_extract_unicode(
+            const next_char32_error& next_char32_error_arg
+        ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::
+            escape_char_then_unable_to_extract_unicode,
+        next_char32_error_arg,
+        std::string_view(),
+        {0, 0},
+        U'\0'
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::ascii_unrecognised_escape_char(
+        const char32_t next_char32_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::ascii_unrecognised_escape_char,
+        next_char32_error_factory::iterator_exhausted(),
+        std::string_view(),
+        {0, 0},
+        next_char32_arg
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::unicode_unrecognised_escape_char(
+        const char32_t next_char32_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::
+            unicode_unrecognised_escape_char,
+        next_char32_error_factory::iterator_exhausted(),
+        std::string_view(),
+        {0, 0},
+        next_char32_arg
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::reading_hex_unable_to_extract_unicode(
+        const next_char32_error& next_char32_error_arg,
+        const std::size_t        idx_arg,
+        const std::size_t        n_chars_to_read_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::
+            reading_hex_unable_to_extract_unicode,
+        next_char32_error_arg,
+        std::string_view(),
+        {idx_arg, n_chars_to_read_arg},
+        U'\0'
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::invalid_hex_digits(
+        const std::string_view chars_to_read_arg
+    ) noexcept
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::invalid_hex_digits,
+        next_char32_error_factory::iterator_exhausted(),
+        chars_to_read_arg,
+        {0, 0},
+        U'\0'
+    );
+}
+
+constexpr from_formatted_string_error
+    from_formatted_string_error_factory::invalid_unicode_after_conversion(
+        const std::string_view chars_to_read_arg
+    )
+{
+    return from_formatted_string_error(
+        from_formatted_string_error::error_code::
+            invalid_unicode_after_conversion,
+        next_char32_error_factory::iterator_exhausted(),
+        chars_to_read_arg,
+        {0, 0},
+        U'\0'
     );
 }
 
@@ -7224,7 +7366,6 @@ constexpr std::conditional_t<
     next_char32_result<std::pair<char32_t, std::size_t>>,
     std::optional<std::pair<char32_t, std::size_t>>>
     next_char32_internal_with_iterator_checking(
-        const T iterator_begin_arg,
         const T iterator_arg,
         const T itt_end_arg
     ) noexcept
@@ -7434,11 +7575,7 @@ constexpr std::conditional_t<
                         Return_Reason,
                         Original_Value_Type,
                         prev_char32_error_factory,
-                        prev_char32_error>(
-                        scan,
-                        sequence_length,
-                        code_point
-                    );
+                        prev_char32_error>(scan, sequence_length, code_point);
                 }
                 else
                 {
@@ -7467,7 +7604,7 @@ constexpr std::conditional_t<
             return unexpected(prev_char32_error_factory::
                                   iterator_begin_reached_before_leading_byte(
                                       u8_units_to_arr(scan, n_continuation),
-                                      n_continuation
+                                      static_cast<std::uint8_t>(n_continuation)
                                   ));
         }
         else
@@ -7484,6 +7621,304 @@ constexpr std::conditional_t<
             "character type"
         );
     }
+}
+
+template <bool Return_Reason, typename OutputChar, typename ArgType>
+requires is_char_type_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+         && is_char_type_c<OutputChar>
+constexpr std::conditional_t<
+    Return_Reason,
+    std::expected<std::basic_string<OutputChar>, from_formatted_string_error>,
+    std::optional<std::basic_string<OutputChar>>>
+    from_formatted_unicode_string_internal(
+        ArgType str_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    basic_string<OutputChar> return_value;
+    using InputChar = char_type_of_t<ArgType>;
+    basic_string_view<InputChar> str_as_sv(str_arg);
+    auto                         string_iterator{std::begin(str_as_sv)};
+    auto                         string_iterator_end{std::end(str_as_sv)};
+    // Move through input.
+    for (; string_iterator != string_iterator_end;)
+    {
+        auto res = next_formatted_unicode_char_internal<true, OutputChar>(
+            string_iterator, string_iterator_end
+        );
+        if (res.has_value())
+        {
+            string_iterator = res.value().second;
+            return_value.append(res.value().first);
+        }
+        else
+        {
+            if constexpr (Return_Reason)
+            {
+                return unexpected(res.error());
+            }
+            else
+            {
+                return nullopt;
+            }
+        }
+    }
+    return return_value;
+}
+
+template <bool Return_Reason, typename OutputChar, typename ItteratorType>
+requires char_type_is_unicode_c<
+             typename std::iterator_traits<ItteratorType>::value_type>
+         && is_char_type_c<OutputChar>
+constexpr std::conditional_t<
+    Return_Reason,
+    std::expected<
+        std::pair<std::basic_string<OutputChar>, ItteratorType>,
+        from_formatted_string_error>,
+    std::optional<std::pair<std::basic_string<OutputChar>, ItteratorType>>>
+    next_formatted_unicode_char_internal(
+        const ItteratorType iterator_arg,
+        const ItteratorType itt_end_arg
+    ) noexcept
+{
+    using namespace std;
+    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
+    pair<basic_string<OutputChar>, ItteratorType> return_value
+        = make_pair(basic_string<OutputChar>(), iterator_arg);
+    auto& [rv_str, local_itt]{return_value};
+    using InputChar = typename iterator_traits<ItteratorType>::value_type;
+    // Grab next char32_t.
+    const auto next_char_1_opt{next_char32_and_increment_iterator<
+        Return_Reason,
+        ItteratorType,
+        InputChar>(local_itt, itt_end_arg)};
+    if (not next_char_1_opt.has_value())
+    {
+        if constexpr (Return_Reason)
+        {
+            return unexpected(
+                from_formatted_string_error_factory::invalid_unicode_char(
+                    next_char_1_opt.error()
+                )
+            );
+        }
+        else
+        {
+            return nullopt;
+        }
+    }
+    auto& next_char_1 = next_char_1_opt.value();
+    if (next_char_1 != u8'\\')
+    {
+        if constexpr (same_as<OutputChar, char>)
+        {
+            if (next_char_1 > ascii_limit<char32_t>())
+            {
+                if constexpr (Return_Reason)
+                {
+                    return unexpected(
+                        from_formatted_string_error_factory::ascii_out_of_range(
+                            next_char_1
+                        )
+                    );
+                }
+                else
+                {
+                    return nullopt;
+                }
+            }
+            append_ascii(rv_str, next_char_1);
+        }
+        else
+        {
+            add_char_to_unicode_string(next_char_1, rv_str);
+        }
+    }
+    else
+    {
+        const auto next_char_2_opt{next_char32_and_increment_iterator<
+            Return_Reason,
+            ItteratorType,
+            InputChar>(local_itt, itt_end_arg)};
+        if (not next_char_2_opt.has_value())
+        {
+            if constexpr (Return_Reason)
+            {
+                return unexpected(
+                    from_formatted_string_error_factory::
+                        escape_char_then_unable_to_extract_unicode(
+                            next_char_2_opt.error()
+                        )
+                );
+            }
+            else
+            {
+                return nullopt;
+            }
+        }
+        auto& next_char_2                      = next_char_2_opt.value();
+        using arr_contents                     = pair<char8_t, char8_t>;
+        static constexpr arr_contents values[] = {
+            arr_contents(u8'0', u8'\0'),
+            arr_contents{u8'a',  u8'\a'},
+            arr_contents{u8'b',  u8'\b'},
+            arr_contents{u8't',  u8'\t'},
+            arr_contents{u8'n',  u8'\n'},
+            arr_contents{u8'v',  u8'\v'},
+            arr_contents{u8'f',  u8'\f'},
+            arr_contents{u8'r',  u8'\r'},
+            arr_contents{u8'"',  u8'"' },
+            arr_contents{u8'\'', u8'\''},
+            arr_contents{u8'\\', u8'\\'},
+        };
+        // If it matches any of the special characters, that's what
+        // is outputted.
+        const auto it = ranges::find(values, next_char_2, &arr_contents::first);
+        if (it != ranges::end(values))
+        {
+            // All special chars are ASCII.
+            append_ascii(rv_str, it->second);
+        }
+        else
+        {
+            // Getting ready to read some hex. First check that the
+            // letter is correct for the character type, and set how
+            // many hex chars to read.
+            size_t n_chars_to_read;
+            if constexpr (same_as<OutputChar, char>)
+            {
+                if (next_char_2 != U'x')
+                {
+                    if constexpr (Return_Reason)
+                    {
+                        return unexpected(
+                            from_formatted_string_error_factory::
+                                ascii_unrecognised_escape_char(next_char_2)
+                        );
+                    }
+                    else
+                    {
+                        return nullopt;
+                    }
+                }
+                n_chars_to_read = 2;
+            }
+            else
+            {
+                switch (next_char_2)
+                {
+                case U'x':
+                    n_chars_to_read = 2;
+                    break;
+                case U'u':
+                    n_chars_to_read = 4;
+                    break;
+                case U'U':
+                    n_chars_to_read = 8;
+                    break;
+                default:
+                    if constexpr (Return_Reason)
+                    {
+                        return unexpected(
+                            from_formatted_string_error_factory::
+                                unicode_unrecognised_escape_char(next_char_2)
+                        );
+                    }
+                    else
+                    {
+                        return nullopt;
+                    }
+                }
+            }
+            string   chars_to_read(n_chars_to_read, '\0');
+            uint32_t underlying_uint;
+            for (size_t idx{0}; idx < n_chars_to_read; ++idx)
+            {
+                // Read the nest n_chars_to_read chars.
+                const auto next_char_n_opt{next_char32_and_increment_iterator<
+                    Return_Reason,
+                    ItteratorType,
+                    InputChar>(local_itt, itt_end_arg)};
+                if (not next_char_n_opt.has_value())
+                {
+                    if constexpr (Return_Reason)
+                    {
+                        return unexpected(
+                            from_formatted_string_error_factory::
+                                reading_hex_unable_to_extract_unicode(
+                                    next_char_n_opt.error(),
+                                    idx,
+                                    n_chars_to_read
+                                )
+                        );
+                    }
+                    else
+                    {
+                        return nullopt;
+                    }
+                }
+                auto& next_char_n{next_char_n_opt.value()};
+                if (next_char_n <= ascii_limit<char32_t>())
+                {
+                    chars_to_read[idx] = cast_ascii<char>(next_char_n);
+                }
+            }
+            // Read and convert the chars to hex.
+            auto [ptr, ec] = std::from_chars(
+                chars_to_read.data(),
+                chars_to_read.data() + n_chars_to_read,
+                underlying_uint,
+                16
+            );
+            if (ec != std::errc()
+                || ptr != chars_to_read.data() + n_chars_to_read)
+            {
+                if constexpr (Return_Reason)
+                {
+                    return unexpected(
+                        from_formatted_string_error_factory::invalid_hex_digits(
+                            chars_to_read
+                        )
+                    );
+                }
+                else
+                {
+                    return nullopt;
+                }
+            }
+            char32_t encoded_char = static_cast<char32_t>(underlying_uint);
+            if (next_char_2 == U'x')
+            {
+                rv_str.push_back(static_cast<OutputChar>(encoded_char));
+                return return_value;
+            }
+            if constexpr (sizeof(OutputChar) < sizeof(char32_t))
+            {
+                // UTF-8 and UTF-16 can't encode anything beyond the Unicode
+                // limit.
+                if (encoded_char > char32_limit<char32_t>())
+                {
+                    if constexpr (Return_Reason)
+                    {
+                        return unexpected(
+                            from_formatted_string_error_factory::
+                                invalid_unicode_after_conversion(chars_to_read)
+                        );
+                    }
+                    else
+                    {
+                        return nullopt;
+                    }
+                }
+            }
+            add_char_to_unicode_string(encoded_char, rv_str);
+        }
+    }
+    return return_value;
 }
 
 template <bool Return_Reason, typename Original_Value_Type, typename T>
@@ -7644,9 +8079,7 @@ constexpr std::conditional_t<
                 Original_Value_Type,
                 forward_scan_unicode_error_factory,
                 forward_scan_unicode_error>(
-                iterator_arg,
-                code_point_size,
-                code_point
+                iterator_arg, code_point_size, code_point
             );
         }
         else
@@ -7749,7 +8182,6 @@ constexpr std::conditional_t<
     next_char32_result<char32_t>,
     std::optional<char32_t>>
     next_char32_and_increment_iterator(
-        const T iterator_begin_arg,
         T&      iterator_arg,
         const T itt_end_arg
     ) noexcept
@@ -7758,7 +8190,7 @@ constexpr std::conditional_t<
     auto next_char32_t_result{next_char32_internal_with_iterator_checking<
         Return_Reason,
         T,
-        Original_Type>(iterator_begin_arg, iterator_arg, itt_end_arg)};
+        Original_Type>(iterator_arg, itt_end_arg)};
     // If its a valid unicode character.
     if (next_char32_t_result.has_value())
     {
@@ -7993,5 +8425,6 @@ constexpr std::optional<std::u8string>
                  )
                : nullopt;
 }
+
 UNICODE_BRIDGE_INTERNAL_NS_END
 UNICODE_BRIDGE_NS_END
