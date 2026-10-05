@@ -78,7 +78,7 @@ inline void
         int x = 4;
     }
     REQUIRE(error_l_arg.u16_code_points() == error_r_arg.u16_code_points());
-    REQUIRE(error_l_arg.is_wchar() == error_r_arg.is_wchar());
+    REQUIRE(error_l_arg.character_type() == error_r_arg.character_type());
 }
 
 inline void
@@ -1449,7 +1449,7 @@ inline void
              unicode_conversion_with_exception<CharT>(u8"")     },
             {make_str({'\x41', '\x80'},           ""),
              ascii_to_unicode_error(1, '\x80'),
-             unicode_conversion_with_exception<CharT>(u8"A")     },
+             unicode_conversion_with_exception<CharT>(u8"A")    },
 
             {make_str({'\xFF', '\xFE'},           ""),
              ascii_to_unicode_error(0, '\xFF'),
@@ -1524,10 +1524,8 @@ inline void
                         );
                         if (get<1>(result_arg).has_value())
                         {
-                            if ((
-                                (get<1>(result_arg).value().first)
-                                != partial_str_res
-                                ))
+                            if ((get<1>(result_arg).value().first)
+                                != partial_str_res)
                             {
                                 int x = 4;
                             }
@@ -1549,7 +1547,7 @@ inline void
             };
             tuple<
                 bool,
-                optional<pair<basic_string<CharT>,size_t>>,
+                optional<pair<basic_string<CharT>, size_t>>,
                 expected<basic_string<CharT>, optional<ascii_to_unicode_error>>>
                 test_arg;
             {
@@ -1634,7 +1632,7 @@ inline void
                     );
                 if (result.has_value())
                 {
-                    get<1>(test_arg) = make_pair(str,result.value());
+                    get<1>(test_arg) = make_pair(str, result.value());
                     get<2>(test_arg) = unexpected(std::nullopt);
                 }
                 else
@@ -1661,7 +1659,9 @@ inline void
                 catch (const unicode_bridge_exception<ascii_to_unicode_error>&
                            unexpected_exception)
                 {
-                    get<1>(test_arg) = make_pair(str, unexpected_exception.error().get_index());
+                    get<1>(test_arg) = make_pair(
+                        str, unexpected_exception.error().get_index()
+                    );
                     get<2>(test_arg) = unexpected(unexpected_exception.error());
                 }
                 catch (...)
@@ -5059,18 +5059,21 @@ inline void
             REQUIRE(result4 == ws_output);
             auto test_from_formatted = [&]<typename U>(U test_arg)
             {
-                auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                auto result_var
+                    = from_formatted_unicode_string<CharT>(test_arg);
                 if (result_var.has_value())
                 {
                     if (not (str == result_var.value()))
                     {
-                        auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                        auto result_var
+                            = from_formatted_unicode_string<CharT>(test_arg);
                     }
                     REQUIRE(str == result_var.value());
                 }
                 else
                 {
-                    auto result_var = from_formatted_unicode_string<CharT>(test_arg);
+                    auto result_var
+                        = from_formatted_unicode_string<CharT>(test_arg);
                     FAIL();
                 }
             };
@@ -5139,11 +5142,11 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
 
         // 0x7F-0x9F range
         {u8"\u007F",                                                         u8"\\x7F"           },
-        {u8"\u0080",                                                         u8"\\u0080"           }, // U+0080
-        {u8"\u009F",                                                         u8"\\u009F"           }, // U+009F
+        {u8"\u0080",                                                         u8"\\u0080"         }, // U+0080
+        {u8"\u009F",                                                         u8"\\u009F"         }, // U+009F
 
         // special unicode characters
-        {u8"\u00A0",                                                         u8"\\u00A0"           }, // non-breaking space
+        {u8"\u00A0",                                                         u8"\\u00A0"         }, // non-breaking space
         {u8"\u1680",                                                         u8"\\u1680"         }, // ogham space mark
         {u8"\u2006",                                                         u8"\\u2006"         }, // six-per-em space
         {u8"\u200B",                                                         u8"\\u200B"         }, // zero width space
@@ -5154,12 +5157,12 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8"\uFFFD",                                                         u8"\\uFFFD"         }, // replacement character
 
         // embedded in normal strings
-        {u8"a\u00A0b",                                                       u8"a\\u00A0b"         }, // non-breaking space
+        {u8"a\u00A0b",                                                       u8"a\\u00A0b"       }, // non-breaking space
         {u8"a\u2006b",                                                       u8"a\\u2006b"       }, // six-per-em space
         {u8"£\uFEFF→",                                                       u8"£\\uFEFF→"       },
 
         // multiple special characters
-        {u8"\u00A0\u00A0",                                                   u8"\\u00A0\\u00A0"      },
+        {u8"\u00A0\u00A0",                                                   u8"\\u00A0\\u00A0"  },
         {u8"\u2006\u200B",                                                   u8"\\u2006\\u200B"  },
         // single invalid leading bytes
         {mk_unicode<char8_t>({0xFF}),                                        u8"\\xFF"           },
@@ -5205,7 +5208,7 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8"£\n→",                                                           u8"£\\n→"           },
 
         // normal + hex codepoint
-        {u8"a" + mk_unicode<char8_t>({0xC2, 0xA0}) + u8"b",                  u8"a\\u00A0b"         },
+        {u8"a" + mk_unicode<char8_t>({0xC2, 0xA0}) + u8"b",                  u8"a\\u00A0b"       },
         {u8"→" + mk_unicode<char8_t>({0xEF, 0xBB, 0xBF}) + u8"£",            u8"→\\uFEFF£"
         },
 
@@ -5214,25 +5217,25 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {u8string(u8"£→") + mk_unicode<char8_t>({0xC2}),                     u8"£→\\xC2"         },
 
         // escape + hex codepoint
-        {u8"\t\u00A0",                                                       u8"\\t\\u00A0"        },
-        {u8"\u00A0\n",                                                       u8"\\u00A0\\n"        },
+        {u8"\t\u00A0",                                                       u8"\\t\\u00A0"      },
+        {u8"\u00A0\n",                                                       u8"\\u00A0\\n"      },
 
         // escape + malformed
         {u8string(u8"\t") + mk_unicode<char8_t>({0xFF}),                     u8"\\t\\xFF"        },
         {mk_unicode<char8_t>({0xFF}) + u8string(u8"\n"),                     u8"\\xFF\\n"        },
 
         // hex codepoint + malformed
-        {u8string(u8"\u00A0") + mk_unicode<char8_t>({0xFF}),                 u8"\\u00A0\\xFF"      },
-        {mk_unicode<char8_t>({0xFF, 0xC2, 0xA0}),                            u8"\\xFF\\u00A0"      },
+        {u8string(u8"\u00A0") + mk_unicode<char8_t>({0xFF}),                 u8"\\u00A0\\xFF"    },
+        {mk_unicode<char8_t>({0xFF, 0xC2, 0xA0}),                            u8"\\xFF\\u00A0"    },
 
         // all four categories
         {u8string(u8"a\t\u00A0") + mk_unicode<char8_t>({0xFF}),
-         u8"a\\t\\u00A0\\xFF"                                                                      },
+         u8"a\\t\\u00A0\\xFF"                                                                    },
         {mk_unicode<char8_t>({0xC2}) + u8string(u8"\n£\uFEFF"),
          u8"\\xC2\\n£\\uFEFF"                                                                    },
         {u8string(u8"hello\n£") + u8"\u00A0"
              + mk_unicode<char8_t>({0xED, 0xA0, 0x80}) + u8"world",
-         u8"hello\\n£\\u00A0\\xED\\xA0\\x80world"                                                  },
+         u8"hello\\n£\\u00A0\\xED\\xA0\\x80world"                                                },
     };
     initializer_list<pair<u16string, u8string>> input_output_pairs_u16 = {
         {u"", u8""},
@@ -5354,10 +5357,10 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {mk_unicode<char16_t>({0xDC00}) + u16string(u"\n"), u8"\\uDC00\\n"},
 
         // hex codepoint + malformed
-        {u16string(u"\u00A0") + mk_unicode<char16_t>({0xD800}), u8"\\u00A0\\uD800"
-        },
-        {mk_unicode<char16_t>({0xDC00}) + u16string(u"\u00A0"), u8"\\uDC00\\u00A0"
-        },
+        {u16string(u"\u00A0") + mk_unicode<char16_t>({0xD800}),
+         u8"\\u00A0\\uD800"},
+        {mk_unicode<char16_t>({0xDC00}) + u16string(u"\u00A0"),
+         u8"\\uDC00\\u00A0"},
 
         // all four categories
         {u16string(u"a\t") + u"\u00A0" + mk_unicode<char16_t>({0xD800}),
@@ -5413,11 +5416,11 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
 
         // 0x7F-0x9F range
         {U"\u007F",                                                      u8"\\x7F"         },
-        {U"\u0080",                                                      u8"\\u0080"         },
-        {U"\u009F",                                                      u8"\\u009F"         },
+        {U"\u0080",                                                      u8"\\u0080"       },
+        {U"\u009F",                                                      u8"\\u009F"       },
 
         // special unicode characters
-        {U"\u00A0",                                                      u8"\\u00A0"         }, // non-breaking space
+        {U"\u00A0",                                                      u8"\\u00A0"       }, // non-breaking space
         {U"\u1680",                                                      u8"\\u1680"       }, // ogham space mark
         {U"\u2006",                                                      u8"\\u2006"       }, // six-per-em space
         {U"\u200B",                                                      u8"\\u200B"       }, // zero width space
@@ -5428,12 +5431,12 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {U"\uFFFD",                                                      u8"\\uFFFD"       }, // replacement character
 
         // embedded in normal strings
-        {U"a\u00A0b",                                                    u8"a\\u00A0b"       }, // non-breaking space
+        {U"a\u00A0b",                                                    u8"a\\u00A0b"     }, // non-breaking space
         {U"a\u2006b",                                                    u8"a\\u2006b"     }, // six-per-em space
         {U"£\uFEFF→",                                                    u8"£\\uFEFF→"     },
 
         // multiple special characters
-        {U"\u00A0\u00A0",                                                u8"\\u00A0\\u00A0"    },
+        {U"\u00A0\u00A0",                                                u8"\\u00A0\\u00A0"},
         {U"\u2006\u200B",                                                u8"\\u2006\\u200B"},
         // surrogates - use \uNNNN
         {mk_unicode<char32_t>({0xD800}),                                 u8"\\uD800"       },
@@ -5474,7 +5477,7 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
         {U"£\n→",                                                        u8"£\\n→"         },
 
         // normal + hex codepoint
-        {U"a\u00A0b",                                                    u8"a\\u00A0b"       },
+        {U"a\u00A0b",                                                    u8"a\\u00A0b"     },
         {U"→\uFEFF£",                                                    u8"→\\uFEFF£"     },
 
         // normal + surrogate
@@ -5489,8 +5492,8 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
          u8"£→\\UFFFFFFFF"                                                                 },
 
         // escape + hex codepoint
-        {U"\t\u00A0",                                                    u8"\\t\\u00A0"      },
-        {U"\u00A0\n",                                                    u8"\\u00A0\\n"      },
+        {U"\t\u00A0",                                                    u8"\\t\\u00A0"    },
+        {U"\u00A0\n",                                                    u8"\\u00A0\\n"    },
 
         // escape + surrogate
         {u32string(U"\t") + mk_unicode<char32_t>({0xD800}),              u8"\\t\\uD800"    },
@@ -5503,28 +5506,28 @@ std::vector<std::pair<std::basic_string<CharT>, std::u8string>>
          u8"\\U00110000\\n"                                                                },
 
         // hex codepoint + surrogate
-        {u32string(U"\u00A0") + mk_unicode<char32_t>({0xD800}),          u8"\\u00A0\\uD800"
-        },
-        {mk_unicode<char32_t>({0xDC00}) + u32string(U"\u00A0"),          u8"\\uDC00\\u00A0"
-        },
+        {u32string(U"\u00A0") + mk_unicode<char32_t>({0xD800}),
+         u8"\\u00A0\\uD800"                                                                },
+        {mk_unicode<char32_t>({0xDC00}) + u32string(U"\u00A0"),
+         u8"\\uDC00\\u00A0"                                                                },
 
         // hex codepoint + out of range
         {u32string(U"\u00A0") + mk_unicode<char32_t>({0x11'0000}),
-         u8"\\u00A0\\U00110000"                                                              },
+         u8"\\u00A0\\U00110000"                                                            },
         {mk_unicode<char32_t>({0x11'0000}) + u32string(U"\u00A0"),
-         u8"\\U00110000\\u00A0"                                                              },
+         u8"\\U00110000\\u00A0"                                                            },
 
         // all categories
         {u32string(U"a\t") + U"\u00A0" + mk_unicode<char32_t>({0xD800}),
-         u8"a\\t\\u00A0\\uD800"                                                              },
+         u8"a\\t\\u00A0\\uD800"                                                            },
         {mk_unicode<char32_t>({0xDC00}) + u32string(U"\n£\uFEFF"),
          u8"\\uDC00\\n£\\uFEFF"                                                            },
         {u32string(U"hello\n£") + U"\u00A0" + mk_unicode<char32_t>({0xD800})
              + U"world",
-         u8"hello\\n£\\u00A0\\uD800world"                                                    },
+         u8"hello\\n£\\u00A0\\uD800world"                                                  },
         {u32string(U"a\t") + U"\u00A0" + mk_unicode<char32_t>({0xD800})
              + mk_unicode<char32_t>({0x11'0000}) + U"b",
-         u8"a\\t\\u00A0\\uD800\\U00110000b"                                                  },
+         u8"a\\t\\u00A0\\uD800\\U00110000b"                                                },
     };
     initializer_list<pair<string, u8string>> input_output_pairs_ascii = {
         {"",                                                    u8""                  },
@@ -5741,6 +5744,1559 @@ TEST_CASE(
 
 namespace unicode_bridge_testing
 {
+template <typename OutputChar, typename InputChar>
+inline void
+    test_from_formatted_errors(
+        const std::vector<std::tuple<
+            std::basic_string<InputChar>,
+            unicode_bridge::from_formatted_string_error,
+            std::u8string,
+            bool,
+            bool,
+            bool,
+            bool>>& input_output_pairs_arg
+    )
+{
+    using namespace std;
+    for (auto&& input_output_tuple : input_output_pairs_arg)
+    {
+        auto&& [input_str, error_obj, error_str, is_ascii, is_char8, is_char16, is_char32]
+            = input_output_tuple;
+        auto test_func = [&]<typename T>(T str_like_object)
+        {
+            INFO("CharT = " << (typeid(InputChar).name()));
+            INFO("CharU = " << (typeid(OutputChar).name()));
+            INFO(
+                "input_str = " << (unicode_bridge::cast_ascii<char>(
+                    unicode_bridge::to_formatted_unicode_string<char8_t>(
+                        input_str
+                    )
+                ))
+            );
+            auto res
+                = unicode_bridge::from_formatted_unicode_string<OutputChar>(
+                    str_like_object
+                );
+            if (res.has_value())
+            {
+                FAIL(
+                    "from_formatted_unicode_string returned output, should fail"
+                );
+            }
+            else
+            {
+                auto& res_error = res.error();
+                CHECK(error_obj.code() == res_error.code());
+                if (error_obj.code() != res_error.code())
+                {
+                    auto res2 = unicode_bridge::from_formatted_unicode_string<
+                        OutputChar>(str_like_object);
+                }
+                equal_forward_unicode_error(
+                    error_obj.get_forward_scan_error(),
+                    res_error.get_forward_scan_error()
+                );
+                CHECK(
+                    error_obj.numeric_values()[0]
+                    == res_error.numeric_values()[0]
+                );
+                CHECK(
+                    error_obj.numeric_values()[1]
+                    == res_error.numeric_values()[1]
+                );
+                CHECK(
+                    error_obj.numeric_values()[2]
+                    == res_error.numeric_values()[2]
+                );
+                // Required to be done as string_view not compatible with catch2
+                // by default. CHECK(error_obj.string() == res_error.string());
+                string lhs = unicode_bridge::cast_ascii<char>(error_str);
+                string rhs = unicode_bridge::cast_ascii<char>(
+                    res_error.message(str_like_object)
+                );
+                INFO(lhs);
+                INFO(rhs);
+                if (lhs != rhs)
+                {
+                    for (size_t idx = 0; idx < lhs.size(); idx++)
+                    {
+                        // if (lhs[idx] != rhs[idx])
+                        {
+                            int x = 4;
+                        }
+                    }
+                    auto res2 = unicode_bridge::from_formatted_unicode_string<
+                        OutputChar>(str_like_object);
+                }
+                CHECK(lhs == rhs);
+                CHECK(error_obj.char32() == res_error.char32());
+                CHECK(error_str == res_error.message(str_like_object));
+            }
+        };
+
+        // is_ascii, is_char8, is_char16, is_char32
+        if (is_ascii && same_as<OutputChar, char>)
+        {
+            run_all_string_types(
+                [&]<typename T2>(T2 str_input_arg)
+                {
+                    test_func(str_input_arg);
+                },
+                input_str
+            );
+        }
+        if (is_char8 && same_as<OutputChar, char8_t>)
+        {
+            run_all_string_types(
+                [&]<typename T2>(T2 str_input_arg)
+                {
+                    test_func(str_input_arg);
+                },
+                input_str
+            );
+        }
+        if (is_char16 && same_as<OutputChar, char16_t>
+            || is_char16
+                   && same_as<OutputChar, wchar_t> && sizeof(wchar_t) == 2)
+        {
+            run_all_string_types(
+                [&]<typename T2>(T2 str_input_arg)
+                {
+                    test_func(str_input_arg);
+                },
+                input_str
+            );
+            run_all_string_types(
+                [&]<typename T2>(T2 str_input_arg)
+                {
+                    test_func(str_input_arg);
+                },
+                input_str
+            );
+        }
+        if (is_char32 && same_as<OutputChar, char32_t>
+            || is_char32
+                   && same_as<OutputChar, wchar_t> && sizeof(wchar_t) == 4)
+        {
+            run_all_string_types(
+                [&]<typename T2>(T2 str_input_arg)
+                {
+                    test_func(str_input_arg);
+                },
+                input_str
+            );
+        }
+        // run_all_string_types<decltype(test_func), decltype(input_str)>(
+        //     test_func, input_str
+        // );
+    }
+}
+} // namespace unicode_bridge_testing
+
+namespace unicode_bridge_test_cases
+{
+template <typename InputChar, typename OutputChar>
+std::vector<std::tuple<
+    std::basic_string<InputChar>,
+    unicode_bridge::from_formatted_string_error,
+    std::u8string,
+    bool,
+    bool,
+    bool,
+    bool>>
+    get_invalid_from_formatted_unicode_string_data()
+{
+    using namespace std;
+    using namespace unicode_bridge;
+    using namespace unicode_bridge_testing;
+    using namespace unicode_bridge::internal;
+    constexpr bool is_wchar    = same_as<wchar_t, InputChar>;
+    auto           input_type  = to_enum<InputChar>();
+    auto           output_type = to_enum<OutputChar>();
+    initializer_list<tuple<
+        u8string,
+        from_formatted_string_error,
+        u8string,
+        bool,
+        bool,
+        bool,
+        bool>>
+        input_output_pairs_u8 = {
+            {u8"hello" + mk_unicode<char8_t>({0xFF}),
+             from_formatted_string_error_factory::invalid_unicode_char(
+                 5, forward_scan_unicode_error_factory::invalid_leading_byte(0xFF),
+             output_type
+             ), u8"The 6th code unit (0xFF) in the UTF-8 input (\"hello\\xFF\") "
+             u8"passed to the function was found to be an invalid leading "
+             u8"byte. A valid leading "
+             u8"byte must "
+             u8"be inclusively within one of the following ranges: 0x00 to "
+             u8"0x7F "
+             u8"(single-byte sequence), 0xC0 to 0xDF (two-byte sequence), "
+             u8"0xE0 "
+             u8"to 0xEF (three-byte sequence), or 0xF0 to 0xF7 (four-byte "
+             u8"sequence). As 0xFF falls outside all of these ranges, it "
+             u8"cannot "
+             u8"begin a sequence representing a valid Unicode scalar "
+             u8"value, and the function was terminated.", true,
+             true, true,
+             true},
+            {u8"hello☺",
+             from_formatted_string_error_factory::ascii_out_of_range(
+                 5, U'☺', input_type
+             ), u8"The 6th to 8th code units ([0xE2, 0x98, 0xBA]) in the UTF-8 "
+             u8"input (\"hello☺\") passed "
+             u8"to the function encode the Unicode scalar "
+             u8"value "
+             u8"U+263A ('☺'). However, the output type can only encode valid "
+             u8"ASCII values — "
+             u8"valid ASCII values are inclusively between U+0000 and "
+             u8"U+007F. As "
+             u8"U+263A falls outside this range, it cannot be encoded "
+             u8"as ASCII, and the function was terminated.", true,
+             false, false,
+             false},
+            {u8"hello\\" + mk_unicode<char8_t>({0xFF}),
+             from_formatted_string_error_factory::
+                 escape_char_then_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::invalid_leading_byte(
+                         0xFF
+                     ), output_type
+                 ), u8"The 6th code unit is a backslash, which begins an escape "
+             u8"sequence. However, the character immediately following it "
+             u8"could not be decoded. The 7th code unit (0xFF) in the UTF-8 "
+             u8"input "
+             u8"(\"hello\\\\\\xFF\") "
+             u8"passed to the function was found to be an invalid leading "
+             u8"byte. A valid leading "
+             u8"byte must "
+             u8"be inclusively within one of the following ranges: 0x00 to "
+             u8"0x7F "
+             u8"(single-byte sequence), 0xC0 to 0xDF (two-byte sequence), "
+             u8"0xE0 "
+             u8"to 0xEF (three-byte sequence), or 0xF0 to 0xF7 (four-byte "
+             u8"sequence). As 0xFF falls outside all of these ranges, it "
+             u8"cannot "
+             u8"begin a sequence representing a valid Unicode scalar "
+             u8"value, and the function was terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), u8"The 6th code unit (0x5C) in the UTF-8 input (\"hello\\\\\") "
+             u8"passed to the function is a backslash, indicating the start of "
+             u8"an escape sequence. However, the input ended before the escape "
+             u8"sequence could be completed. When the output type is ASCII, "
+             u8"the "
+             u8"recognised escape sequences are '\\0', '\\a', '\\b', '\\t', "
+             u8"'\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' and '\\x\' "
+             u8"(the "
+             u8"last of which must be followed by exactly two hexadecimal "
+             u8"digits). As the escape sequence is incomplete, it cannot be "
+             u8"decoded, and the function was terminated.", true,
+             false, false,
+             false},
+            {u8"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), u8"The 6th code unit (0x5C) in the UTF-8 input (\"hello\\\\\") "
+             u8"passed to the function is a backslash, indicating the start of "
+             u8"an escape sequence. However, the input ended before the escape "
+             u8"sequence could be completed. When the output type is a Unicode "
+             u8"type, the "
+             u8"recognised escape sequences are '\\0', '\\a', '\\b', '\\t', "
+             u8"'\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\', '\\x', "
+             u8"'\\u' and '\\U' (the "
+             u8"last three of which must be followed by exactly two, four and "
+             u8"eight hexadecimal "
+             u8"digits, respectively). As the escape sequence is incomplete, "
+             u8"it cannot be "
+             u8"decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {u8"hello\\u",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U'u', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x5C, 0x75]) in the UTF-8 input "
+             u8"(\"hello\\\\u\") passed to the function form an escape "
+             u8"sequence: "
+             u8"a backslash followed by U+0075 ('u'). However, this escape "
+             u8"sequence is only recognised when the output type is a Unicode "
+             u8"type. When the output type is ASCII, the recognised escape "
+             u8"sequences are '\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', "
+             u8"'\\r', '\\\"', '\\'', '\\\\' and '\\x' (the last of which must "
+             u8"be followed by exactly two hexadecimal digits). As this escape "
+             u8"sequence is not recognised for this output type, it cannot be "
+             u8"decoded, and the function was terminated.", true,
+             false, false,
+             false},
+            {u8"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x5C, 0x3B]) in the UTF-8 input "
+             "(\"hello\\\\;\") passed to the function form an escape sequence: "
+             "a backslash followed by U+003B (';'). However, this is not a "
+             "recognised escape sequence. When the output type is a Unicode "
+             "type, the recognised escape sequences are '\\0', '\\a', '\\b', "
+             "'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\', '\\x', "
+             "'\\u' and '\\U' (the last three of which must be followed by "
+             "exactly two, four and eight hexadecimal digits, respectively). "
+             "As this escape sequence is not recognised for this output type, "
+             "it cannot be decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {u8"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x5C, 0x3B]) in the UTF-8 input "
+             "(\"hello\\\\;\") passed to the function form an escape sequence: "
+             "a backslash followed by U+003B (';'). However, this is not a "
+             "recognised escape sequence. When the output type is ASCII, the "
+             "recognised escape sequences are '\\0', '\\a', '\\b', "
+             "'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' and "
+             "'\\x' (the last of which must be followed by "
+             "exactly two hexadecimal digits). "
+             "As this escape sequence is not recognised for this output type, "
+             "it cannot be decoded, and the function was terminated.", true,
+             false, false,
+             false},
+            {u8"hello\\xF" + mk_unicode<char8_t>({0xFF}),
+             from_formatted_string_error_factory::
+                 reading_hex_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::invalid_leading_byte(
+                         0xFF
+                     ), "F",
+             1, 2,
+             output_type
+                 ), u8"The escape sequence '\\x' beginning at the 6th code unit must "
+             u8"be followed by exactly two hexadecimal digits. However, after "
+             u8"one hexadecimal digit (\"F\") was read, the next character "
+             u8"could "
+             u8"not be decoded. The 9th code unit (0xFF) in the UTF-8 input "
+             u8"(\"hello\\\\xF\\xFF\") "
+             u8"passed to the function was found to be an invalid leading "
+             u8"byte. A valid leading "
+             u8"byte must "
+             u8"be inclusively within one of the following ranges: 0x00 to "
+             u8"0x7F "
+             u8"(single-byte sequence), 0xC0 to 0xDF (two-byte sequence), "
+             u8"0xE0 "
+             u8"to 0xEF (three-byte sequence), or 0xF0 to 0xF7 (four-byte "
+             u8"sequence). As 0xFF falls outside all of these ranges, it "
+             u8"cannot "
+             u8"begin a sequence representing a valid Unicode scalar "
+             u8"value, and the function was terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\x",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 2, "", input_type, output_type
+                 ), u8"The 6th and 7th code units ([0x5C, 0x78]) in the UTF-8 "
+             u8"input (\"hello\\\\x\") passed to the function form the start "
+             u8"of "
+             u8"the escape sequence '\\x', which must be followed by exactly "
+             u8"two hexadecimal digits. However, the input ended before any "
+             u8"hexadecimal digits were read. As the escape sequence is "
+             u8"incomplete, it cannot be decoded, and the function was "
+             u8"terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\u",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 4, "", input_type, output_type
+                 ), u8"The 6th and 7th code units ([0x5C, 0x75]) in the UTF-8 "
+             u8"input (\"hello\\\\u\") passed to the function form the start "
+             u8"of "
+             u8"the escape sequence '\\u', which must be followed by exactly "
+             u8"four hexadecimal digits. However, the input ended before any "
+             u8"hexadecimal digits were read. As the escape sequence is "
+             u8"incomplete, it cannot be decoded, and the function was "
+             u8"terminated.", false,
+             true, true,
+             true},
+            {u8"hello\\xF",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 1, 2, "F", input_type, output_type
+                 ), u8"The 6th to 8th code units ([0x5C, 0x78, 0x46]) in the UTF-8 "
+             u8"input (\"hello\\\\xF\") passed to the function form the start "
+             u8"of the escape sequence '\\x', which must be followed by "
+             u8"exactly two hexadecimal digits. However, the input ended after "
+             u8"only one hexadecimal digit (\"F\") was read. As the escape "
+             u8"sequence is incomplete, it cannot be decoded, and the function "
+             u8"was terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\U0000F",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 5, 8, "0000F", input_type, output_type
+                 ), u8"The 6th to 12th code units ([0x5C, 0x55, 0x30, 0x30, 0x30, "
+             u8"0x30, 0x46]) in the UTF-8 "
+             u8"input (\"hello\\\\U0000F\") passed to the function form the "
+             u8"start "
+             u8"of the escape sequence '\\U', which must be followed by "
+             u8"exactly eight hexadecimal digits. However, the input ended "
+             u8"after "
+             u8"only five hexadecimal digits (\"0000F\") were read. As the "
+             u8"escape "
+             u8"sequence is incomplete, it cannot be decoded, and the function "
+             u8"was terminated.", false,
+             true, true,
+             true},
+            {u8"hello\\xF☺",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'☺', 1, 2, "", input_type, output_type
+             ), u8"The 6th to 11th code units ([0x5C, 0x78, 0x46, 0xE2, 0x98, "
+             u8"0xBA]) in the UTF-8 input (\"hello\\\\xF☺\") passed to the "
+             u8"function form the start of the escape sequence '\\x', which "
+             u8"must be followed by exactly two hexadecimal digits. However, "
+             u8"after one hexadecimal digit (\"F\") was read, the next "
+             u8"character, U+263A ('☺'), is not a hexadecimal digit — "
+             u8"hexadecimal digits must be inclusively between '0' and '9', "
+             u8"'a' and 'f', or 'A' and 'F'. As the escape sequence is "
+             u8"invalid, it cannot be decoded, and the function was "
+             u8"terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\xFg",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'g', 1, 2, "", input_type, output_type
+             ), u8"The 6th to 9th code units ([0x5C, 0x78, 0x46, 0x67]) in the "
+             u8"UTF-8 input (\"hello\\\\xFg\") passed to the "
+             u8"function form the start of the escape sequence '\\x', which "
+             u8"must be followed by exactly two hexadecimal digits. However, "
+             u8"after one hexadecimal digit (\"F\") was read, the next "
+             u8"character, U+0067 ('g'), is not a hexadecimal digit — "
+             u8"hexadecimal digits must be inclusively between '0' and '9', "
+             u8"'a' and 'f', or 'A' and 'F'. As the escape sequence is "
+             u8"invalid, it cannot be decoded, and the function was "
+             u8"terminated.", true,
+             true, true,
+             true},
+            {u8"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), u8"The 6th to 15th code units ([0x5C, 0x55, 0x30, 0x30, 0x31, "
+             u8"0x31, 0x30, "
+             u8"0x30, 0x30, 0x30]) in the UTF-8 input (\"hello\\\\U00110000\") "
+             u8"passed to "
+             u8"the function form the escape sequence '\\U00110000', which "
+             u8"encodes the "
+             u8"value U+110000. However, the output type is UTF-8, which can "
+             u8"only "
+             u8"encode values inclusively between U+0000 and U+10FFFF. As "
+             u8"U+110000 "
+             u8"falls outside this range, it cannot be encoded as UTF-8, and "
+             u8"the "
+             u8"function was terminated.", false,
+             true, false,
+             false},
+
+            {u8"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), output_type == character_type_enum::utf16
+                 ? u8"The 6th to 15th code units ([0x5C, 0x55, 0x30, 0x30, "
+                   u8"0x31, "
+                   u8"0x31, 0x30, "
+                   u8"0x30, 0x30, 0x30]) in the UTF-8 input "
+                   u8"(\"hello\\\\U00110000\") "
+                   u8"passed to "
+                   u8"the function form the escape sequence '\\U00110000', "
+                   u8"which "
+                   u8"encodes the "
+                   u8"value U+110000. However, the output type is UTF-16, "
+                   u8"which can "
+                   u8"only "
+                   u8"encode values inclusively between U+0000 and U+10FFFF. "
+                   u8"As "
+                   u8"U+110000 "
+                   u8"falls outside this range, it cannot be encoded as "
+                   u8"UTF-16, and "
+                   u8"the "
+                   u8"function was terminated."
+                 : u8"The 6th to 15th code units ([0x5C, 0x55, 0x30, 0x30, "
+                   u8"0x31, "
+                   u8"0x31, 0x30, "
+                   u8"0x30, 0x30, 0x30]) in the UTF-8 input "
+                   u8"(\"hello\\\\U00110000\") "
+                   u8"passed to "
+                   u8"the function form the escape sequence '\\U00110000', "
+                   u8"which "
+                   u8"encodes the "
+                   u8"value U+110000. However, the output type is UTF-16 "
+                   u8"(encoded as wchar_t), which can "
+                   u8"only "
+                   u8"encode values inclusively between U+0000 and U+10FFFF. "
+                   u8"As "
+                   u8"U+110000 "
+                   u8"falls outside this range, it cannot be encoded as "
+                   u8"UTF-16, and "
+                   u8"the "
+                   u8"function was terminated.", false,
+             false, true,
+             false},
+            {u8"\\U0000000😀",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 0, U'😀', 7, 8, "", input_type, output_type
+             ), u8"The 1st to 13th code units ([0x5C, 0x55, 0x30, 0x30, 0x30, "
+             u8"0x30, 0x30, 0x30, 0x30, 0xF0, 0x9F, 0x98, 0x80]) in the UTF-8 "
+             u8"input (\"\\\\U0000000😀\") passed to the function form the "
+             u8"start of the escape sequence '\\U', which must be followed by "
+             u8"exactly eight hexadecimal digits. However, after seven "
+             u8"hexadecimal digits (\"0000000\") were read, the next "
+             u8"character, "
+             u8"U+1F600 ('😀'), is not a hexadecimal digit — hexadecimal "
+             u8"digits "
+             u8"must be inclusively between '0' and '9', 'a' and 'f', or 'A' "
+             u8"and 'F'. As the escape sequence is invalid, it cannot be "
+             u8"decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {u8"\\U0000000😀",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 0, U'U', input_type, output_type
+             ), u8"The 1st and 2nd code units ([0x5C, 0x55]) in the UTF-8 input "
+             u8"(\"\\\\U0000000😀\") passed to the function form an escape "
+             u8"sequence: a backslash followed by U+0055 ('U'). However, this "
+             u8"escape sequence is only recognised when the output type is a "
+             u8"Unicode type. When the output type is ASCII, the recognised "
+             u8"escape sequences are '\\0', '\\a', '\\b', '\\t', '\\n', '\\v', "
+             u8"'\\f', '\\r', '\\\"', '\\'', '\\\\' and '\\x' (the last of "
+             u8"which must be followed by exactly two hexadecimal digits). As "
+             u8"this escape sequence is not recognised for this output type, "
+             u8"it "
+             u8"cannot be decoded, and the function was terminated.", true,
+             false, false,
+             false},
+    };
+    auto char16_type = same_as<char16_t, InputChar>
+                           ? character_type_enum::utf16
+                           : character_type_enum::utf16_wchar;
+    initializer_list<tuple<
+        u16string,
+        from_formatted_string_error,
+        u8string,
+        bool,
+        bool,
+        bool,
+        bool>>
+        input_output_pairs_u16 = {
+            {u"hello" + mk_unicode<char16_t>({0xD83D}),
+             from_formatted_string_error_factory::invalid_unicode_char(
+                 5, forward_scan_unicode_error_factory::
+                     high_surrogate_then_end_of_stream(
+                         static_cast<char16_t>(0xD83D), is_wchar
+                     ), output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th code unit (0xD83D) in the UTF-16 input "
+                   u8"(\"hello\\uD83D\", encoded using wchar_t) passed to the "
+                   u8"function is a high surrogate, indicating the start of a "
+                   u8"surrogate pair. However, the input ended after this code "
+                   u8"unit — a low surrogate was expected to follow but was "
+                   u8"not present. As the surrogate pair is incomplete, it "
+                   u8"cannot represent a valid Unicode scalar value, and the "
+                   u8"function was terminated."
+                 : u8"The 6th code unit (0xD83D) in the UTF-16 input "
+                   u8"(\"hello\\uD83D\") passed to the function is a high "
+                   u8"surrogate, indicating the start of a surrogate pair. "
+                   u8"However, the input ended after this code unit — a low "
+                   u8"surrogate was expected to follow but was not present. "
+                   u8"As the surrogate pair is incomplete, it cannot represent "
+                   u8"a valid Unicode scalar value, and the function was "
+                   u8"terminated.", true,
+             true, true,
+             true},
+            {u"hello☺",
+             from_formatted_string_error_factory::ascii_out_of_range(
+                 5, U'☺', input_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th code unit (0x263A) in the UTF-16 input "
+                   u8"(\"hello☺\", encoded using wchar_t) passed to the "
+                   u8"function encodes the Unicode scalar value U+263A ('☺'). "
+                   u8"However, the output type can only encode valid ASCII "
+                   u8"values — valid ASCII values are inclusively between "
+                   u8"U+0000 and U+007F. As U+263A falls outside this range, "
+                   u8"it cannot be encoded as ASCII, and the function was "
+                   u8"terminated."
+                 : u8"The 6th code unit (0x263A) in the UTF-16 input "
+                   u8"(\"hello☺\") passed to the function encodes the Unicode "
+                   u8"scalar value U+263A ('☺'). However, the output type can "
+                   u8"only encode valid ASCII values — valid ASCII values are "
+                   u8"inclusively between U+0000 and U+007F. As U+263A falls "
+                   u8"outside this range, it cannot be encoded as ASCII, and "
+                   u8"the function was terminated.", true,
+             false, false,
+             false},
+            {u"hello\\" + mk_unicode<char16_t>({0xD83D}),
+             from_formatted_string_error_factory::
+                 escape_char_then_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::
+                         high_surrogate_then_end_of_stream(
+                             static_cast<char16_t>(0xD83D), is_wchar
+                         ), output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th code unit is a backslash, which begins an "
+                   u8"escape sequence. However, the character immediately "
+                   u8"following it could not be decoded. The 7th code unit "
+                   u8"(0xD83D) in the UTF-16 input (\"hello\\\\\\uD83D\", "
+                   u8"encoded using wchar_t) passed to the function is a high "
+                   u8"surrogate, indicating the start of a surrogate pair. "
+                   u8"However, the input ended after this code unit — a low "
+                   u8"surrogate was expected to follow but was not present. "
+                   u8"As the surrogate pair is incomplete, it cannot represent "
+                   u8"a valid Unicode scalar value, and the function was "
+                   u8"terminated."
+                 : u8"The 6th code unit is a backslash, which begins an "
+                   u8"escape sequence. However, the character immediately "
+                   u8"following it could not be decoded. The 7th code unit "
+                   u8"(0xD83D) in the UTF-16 input (\"hello\\\\\\uD83D\") "
+                   u8"passed to the function is a high surrogate, indicating "
+                   u8"the start of a surrogate pair. However, the input ended "
+                   u8"after this code unit — a low surrogate was expected to "
+                   u8"follow but was not present. As the surrogate pair is "
+                   u8"incomplete, it cannot represent a valid Unicode scalar "
+                   u8"value, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th code unit (0x005C) in the UTF-16 input "
+                   u8"(\"hello\\\\\", encoded using wchar_t) passed to the "
+                   u8"function is a backslash, indicating the start of an "
+                   u8"escape sequence. However, the input ended before the "
+                   u8"escape sequence could be completed. When the output type "
+                   u8"is ASCII, the recognised escape sequences are '\\0', "
+                   u8"'\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', "
+                   u8"'\\'', '\\\\' and '\\x' (the last of which must be "
+                   u8"followed by exactly two hexadecimal digits). As the "
+                   u8"escape sequence is incomplete, it cannot be decoded, and "
+                   u8"the function was terminated."
+                 : u8"The 6th code unit (0x005C) in the UTF-16 input "
+                   u8"(\"hello\\\\\") passed to the function is a backslash, "
+                   u8"indicating the start of an escape sequence. However, the "
+                   u8"input ended before the escape sequence could be "
+                   u8"completed. When the output type is ASCII, the recognised "
+                   u8"escape sequences are '\\0', '\\a', '\\b', '\\t', '\\n', "
+                   u8"'\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' and '\\x' "
+                   u8"(the "
+                   u8"last of which must be followed by exactly two "
+                   u8"hexadecimal digits). As the escape sequence is "
+                   u8"incomplete, it cannot be decoded, and the function was "
+                   u8"terminated.", true,
+             false, false,
+             false},
+            {u"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th code unit (0x005C) in the UTF-16 input "
+                   u8"(\"hello\\\\\", encoded using wchar_t) passed to the "
+                   u8"function is a backslash, indicating the start of an "
+                   u8"escape sequence. However, the input ended before the "
+                   u8"escape sequence could be completed. When the output type "
+                   u8"is a Unicode type, the recognised escape sequences are "
+                   u8"'\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', "
+                   u8"'\\\"', '\\'', '\\\\', '\\x', '\\u' and '\\U' (the last "
+                   u8"three of which must be followed by exactly two, four and "
+                   u8"eight hexadecimal digits, respectively). As the escape "
+                   u8"sequence is incomplete, it cannot be decoded, and the "
+                   u8"function was terminated."
+                 : u8"The 6th code unit (0x005C) in the UTF-16 input "
+                   u8"(\"hello\\\\\") passed to the function is a backslash, "
+                   u8"indicating the start of an escape sequence. However, the "
+                   u8"input ended before the escape sequence could be "
+                   u8"completed. When the output type is a Unicode type, the "
+                   u8"recognised escape sequences are '\\0', '\\a', '\\b', "
+                   u8"'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', "
+                   u8"'\\\\', "
+                   u8"'\\x', '\\u' and '\\U' (the last three of which must be "
+                   u8"followed by exactly two, four and eight hexadecimal "
+                   u8"digits, respectively). As the escape sequence is "
+                   u8"incomplete, it cannot be decoded, and the function was "
+                   u8"terminated.", false,
+             true, true,
+             true},
+            {u"hello\\u",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U'u', input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th and 7th code units ([0x005C, 0x0075]) in the "
+                   u8"UTF-16 input (\"hello\\\\u\", encoded using wchar_t) "
+                   u8"passed to the function form an escape sequence: a "
+                   u8"backslash followed by U+0075 ('u'). However, this escape "
+                   u8"sequence is only recognised when the output type is a "
+                   u8"Unicode type. When the output type is ASCII, the "
+                   u8"recognised escape sequences are '\\0', '\\a', '\\b', "
+                   u8"'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' "
+                   u8"and '\\x' (the last of which must be followed by exactly "
+                   u8"two hexadecimal digits). As this escape sequence is not "
+                   u8"recognised for this output type, it cannot be decoded, "
+                   u8"and the function was terminated."
+                 : u8"The 6th and 7th code units ([0x005C, 0x0075]) in the "
+                   u8"UTF-16 input (\"hello\\\\u\") passed to the function "
+                   u8"form an escape sequence: a backslash followed by U+0075 "
+                   u8"('u'). However, this escape sequence is only recognised "
+                   u8"when the output type is a Unicode type. When the output "
+                   u8"type is ASCII, the recognised escape sequences are "
+                   u8"'\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', "
+                   u8"'\\\"', '\\'', '\\\\' and '\\x' (the last of which must "
+                   u8"be followed by exactly two hexadecimal digits). As this "
+                   u8"escape sequence is not recognised for this output type, "
+                   u8"it cannot be decoded, and the function was terminated.", true,
+             false, false,
+             false},
+            {u"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th and 7th code units ([0x005C, 0x003B]) in the "
+                   u8"UTF-16 input (\"hello\\\\;\", encoded using wchar_t) "
+                   u8"passed to the function form an escape sequence: a "
+                   u8"backslash followed by U+003B (';'). However, this is not "
+                   u8"a recognised escape sequence. When the output type is a "
+                   u8"Unicode type, the recognised escape sequences are '\\0', "
+                   u8"'\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', "
+                   u8"'\\'', '\\\\', '\\x', '\\u' and '\\U' (the last three of "
+                   u8"which must be followed by exactly two, four and eight "
+                   u8"hexadecimal digits, respectively). As this escape "
+                   u8"sequence is not recognised for this output type, it "
+                   u8"cannot be decoded, and the function was terminated."
+                 : u8"The 6th and 7th code units ([0x005C, 0x003B]) in the "
+                   u8"UTF-16 input (\"hello\\\\;\") passed to the function "
+                   u8"form an escape sequence: a backslash followed by U+003B "
+                   u8"(';'). However, this is not a recognised escape "
+                   u8"sequence. When the output type is a Unicode type, the "
+                   u8"recognised escape sequences are '\\0', '\\a', '\\b', "
+                   u8"'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', "
+                   u8"'\\\\', "
+                   u8"'\\x', '\\u' and '\\U' (the last three of which must be "
+                   u8"followed by exactly two, four and eight hexadecimal "
+                   u8"digits, respectively). As this escape sequence is not "
+                   u8"recognised for this output type, it cannot be decoded, "
+                   u8"and the function was terminated.", false,
+             true, true,
+             true},
+            {u"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th and 7th code units ([0x005C, 0x003B]) in the "
+                   u8"UTF-16 input (\"hello\\\\;\", encoded using wchar_t) "
+                   u8"passed to the function form an escape sequence: a "
+                   u8"backslash followed by U+003B (';'). However, this is not "
+                   u8"a recognised escape sequence. When the output type is "
+                   u8"ASCII, the recognised escape sequences are '\\0', '\\a', "
+                   u8"'\\b', '\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', "
+                   u8"'\\\\' and '\\x' (the last of which must be followed by "
+                   u8"exactly two hexadecimal digits). As this escape sequence "
+                   u8"is not recognised for this output type, it cannot be "
+                   u8"decoded, and the function was terminated."
+                 : u8"The 6th and 7th code units ([0x005C, 0x003B]) in the "
+                   u8"UTF-16 input (\"hello\\\\;\") passed to the function "
+                   u8"form an escape sequence: a backslash followed by U+003B "
+                   u8"(';'). However, this is not a recognised escape "
+                   u8"sequence. When the output type is ASCII, the recognised "
+                   u8"escape sequences are '\\0', '\\a', '\\b', '\\t', '\\n', "
+                   u8"'\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' and '\\x' "
+                   u8"(the "
+                   u8"last of which must be followed by exactly two "
+                   u8"hexadecimal digits). As this escape sequence is not "
+                   u8"recognised for this output type, it cannot be decoded, "
+                   u8"and the function was terminated.", true,
+             false, false,
+             false},
+            {u"hello\\xF" + mk_unicode<char16_t>({0xD83D}),
+             from_formatted_string_error_factory::
+                 reading_hex_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::
+                         high_surrogate_then_end_of_stream(
+                             static_cast<char16_t>(0xD83D), is_wchar
+                         ), "F",
+             1, 2,
+             output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The escape sequence '\\x' beginning at the 6th code unit "
+                   u8"must be followed by exactly two hexadecimal digits. "
+                   u8"However, after one hexadecimal digit (\"F\") was read, "
+                   u8"the next character could not be decoded. The 9th code "
+                   u8"unit (0xD83D) in the UTF-16 input "
+                   u8"(\"hello\\\\xF\\uD83D\", "
+                   u8"encoded using wchar_t) passed to the function is a high "
+                   u8"surrogate, indicating the start of a surrogate pair. "
+                   u8"However, the input ended after this code unit — a low "
+                   u8"surrogate was expected to follow but was not present. "
+                   u8"As the surrogate pair is incomplete, it cannot represent "
+                   u8"a valid Unicode scalar value, and the function was "
+                   u8"terminated."
+                 : u8"The escape sequence '\\x' beginning at the 6th code unit "
+                   u8"must be followed by exactly two hexadecimal digits. "
+                   u8"However, after one hexadecimal digit (\"F\") was read, "
+                   u8"the next character could not be decoded. The 9th code "
+                   u8"unit (0xD83D) in the UTF-16 input "
+                   u8"(\"hello\\\\xF\\uD83D\") "
+                   u8"passed to the function is a high surrogate, indicating "
+                   u8"the start of a surrogate pair. However, the input ended "
+                   u8"after this code unit — a low surrogate was expected to "
+                   u8"follow but was not present. As the surrogate pair is "
+                   u8"incomplete, it cannot represent a valid Unicode scalar "
+                   u8"value, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\x",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 2, "", input_type, output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th and 7th code units ([0x005C, 0x0078]) in the "
+                   u8"UTF-16 input (\"hello\\\\x\", encoded using wchar_t) "
+                   u8"passed to the function form the start of the escape "
+                   u8"sequence '\\x', which must be followed by exactly two "
+                   u8"hexadecimal digits. However, the input ended before any "
+                   u8"hexadecimal digits were read. As the escape sequence is "
+                   u8"incomplete, it cannot be decoded, and the function was "
+                   u8"terminated."
+                 : u8"The 6th and 7th code units ([0x005C, 0x0078]) in the "
+                   u8"UTF-16 input (\"hello\\\\x\") passed to the function "
+                   u8"form the start of the escape sequence '\\x', which must "
+                   u8"be followed by exactly two hexadecimal digits. However, "
+                   u8"the input ended before any hexadecimal digits were read. "
+                   u8"As the escape sequence is incomplete, it cannot be "
+                   u8"decoded, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\u",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 4, "", input_type, output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th and 7th code units ([0x005C, 0x0075]) in the "
+                   u8"UTF-16 input (\"hello\\\\u\", encoded using wchar_t) "
+                   u8"passed to the function form the start of the escape "
+                   u8"sequence '\\u', which must be followed by exactly four "
+                   u8"hexadecimal digits. However, the input ended before any "
+                   u8"hexadecimal digits were read. As the escape sequence is "
+                   u8"incomplete, it cannot be decoded, and the function was "
+                   u8"terminated."
+                 : u8"The 6th and 7th code units ([0x005C, 0x0075]) in the "
+                   u8"UTF-16 input (\"hello\\\\u\") passed to the function "
+                   u8"form the start of the escape sequence '\\u', which must "
+                   u8"be followed by exactly four hexadecimal digits. However, "
+                   u8"the input ended before any hexadecimal digits were read. "
+                   u8"As the escape sequence is incomplete, it cannot be "
+                   u8"decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {u"hello\\xF",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 1, 2, "F", input_type, output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th to 8th code units ([0x005C, 0x0078, 0x0046]) in "
+                   u8"the UTF-16 input (\"hello\\\\xF\", encoded using "
+                   u8"wchar_t) "
+                   u8"passed to the function form the start of the escape "
+                   u8"sequence '\\x', which must be followed by exactly two "
+                   u8"hexadecimal digits. However, the input ended after only "
+                   u8"one hexadecimal digit (\"F\") was read. As the escape "
+                   u8"sequence is incomplete, it cannot be decoded, and the "
+                   u8"function was terminated."
+                 : u8"The 6th to 8th code units ([0x005C, 0x0078, 0x0046]) in "
+                   u8"the UTF-16 input (\"hello\\\\xF\") passed to the "
+                   u8"function "
+                   u8"form the start of the escape sequence '\\x', which must "
+                   u8"be followed by exactly two hexadecimal digits. However, "
+                   u8"the input ended after only one hexadecimal digit (\"F\") "
+                   u8"was read. As the escape sequence is incomplete, it "
+                   u8"cannot be decoded, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\U0000F",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 5, 8, "0000F", input_type, output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th to 12th code units ([0x005C, 0x0055, 0x0030, "
+                   u8"0x0030, 0x0030, 0x0030, 0x0046]) in the UTF-16 input "
+                   u8"(\"hello\\\\U0000F\", encoded using wchar_t) passed to "
+                   u8"the function form the start of the escape sequence "
+                   u8"'\\U', which must be followed by exactly eight "
+                   u8"hexadecimal digits. However, the input ended after only "
+                   u8"five hexadecimal digits (\"0000F\") were read. As the "
+                   u8"escape sequence is incomplete, it cannot be decoded, and "
+                   u8"the function was terminated."
+                 : u8"The 6th to 12th code units ([0x005C, 0x0055, 0x0030, "
+                   u8"0x0030, 0x0030, 0x0030, 0x0046]) in the UTF-16 input "
+                   u8"(\"hello\\\\U0000F\") passed to the function form the "
+                   u8"start of the escape sequence '\\U', which must be "
+                   u8"followed by exactly eight hexadecimal digits. However, "
+                   u8"the input ended after only five hexadecimal digits "
+                   u8"(\"0000F\") were read. As the escape sequence is "
+                   u8"incomplete, it cannot be decoded, and the function was "
+                   u8"terminated.", false,
+             true, true,
+             true},
+            {u"hello\\xF☺",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'☺', 1, 2, "", input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th to 9th code units ([0x005C, 0x0078, 0x0046, "
+                   u8"0x263A]) in the UTF-16 input (\"hello\\\\xF☺\", encoded "
+                   u8"using wchar_t) passed to the function form the start of "
+                   u8"the escape sequence '\\x', which must be followed by "
+                   u8"exactly two hexadecimal digits. However, after one "
+                   u8"hexadecimal digit (\"F\") was read, the next character, "
+                   u8"U+263A ('☺'), is not a hexadecimal digit — hexadecimal "
+                   u8"digits must be inclusively between '0' and '9', 'a' and "
+                   u8"'f', or 'A' and 'F'. As the escape sequence is invalid, "
+                   u8"it cannot be decoded, and the function was terminated."
+                 : u8"The 6th to 9th code units ([0x005C, 0x0078, 0x0046, "
+                   u8"0x263A]) in the UTF-16 input (\"hello\\\\xF☺\") passed "
+                   u8"to the function form the start of the escape sequence "
+                   u8"'\\x', which must be followed by exactly two hexadecimal "
+                   u8"digits. However, after one hexadecimal digit (\"F\") was "
+                   u8"read, the next character, U+263A ('☺'), is not a "
+                   u8"hexadecimal digit — hexadecimal digits must be "
+                   u8"inclusively between '0' and '9', 'a' and 'f', or 'A' and "
+                   u8"'F'. As the escape sequence is invalid, it cannot be "
+                   u8"decoded, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\xFg",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'g', 1, 2, "", input_type, output_type
+             ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th to 9th code units ([0x005C, 0x0078, 0x0046, "
+                   u8"0x0067]) in the UTF-16 input (\"hello\\\\xFg\", encoded "
+                   u8"using wchar_t) passed to the function form the start of "
+                   u8"the escape sequence '\\x', which must be followed by "
+                   u8"exactly two hexadecimal digits. However, after one "
+                   u8"hexadecimal digit (\"F\") was read, the next character, "
+                   u8"U+0067 ('g'), is not a hexadecimal digit — hexadecimal "
+                   u8"digits must be inclusively between '0' and '9', 'a' and "
+                   u8"'f', or 'A' and 'F'. As the escape sequence is invalid, "
+                   u8"it cannot be decoded, and the function was terminated."
+                 : u8"The 6th to 9th code units ([0x005C, 0x0078, 0x0046, "
+                   u8"0x0067]) in the UTF-16 input (\"hello\\\\xFg\") passed "
+                   u8"to the function form the start of the escape sequence "
+                   u8"'\\x', which must be followed by exactly two hexadecimal "
+                   u8"digits. However, after one hexadecimal digit (\"F\") was "
+                   u8"read, the next character, U+0067 ('g'), is not a "
+                   u8"hexadecimal digit — hexadecimal digits must be "
+                   u8"inclusively between '0' and '9', 'a' and 'f', or 'A' and "
+                   u8"'F'. As the escape sequence is invalid, it cannot be "
+                   u8"decoded, and the function was terminated.", true,
+             true, true,
+             true},
+            {u"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? u8"The 6th to 15th code units ([0x005C, 0x0055, 0x0030, "
+                   u8"0x0030, 0x0031, 0x0031, 0x0030, 0x0030, 0x0030, 0x0030]) "
+                   u8"in the UTF-16 input (\"hello\\\\U00110000\", encoded "
+                   u8"using wchar_t) passed to the function form the escape "
+                   u8"sequence '\\U00110000', which encodes the value "
+                   u8"U+110000. However, the output type is UTF-8, which can "
+                   u8"only encode values inclusively between U+0000 and "
+                   u8"U+10FFFF. As U+110000 falls outside this range, it "
+                   u8"cannot be encoded as UTF-8, and the function was "
+                   u8"terminated."
+                 : u8"The 6th to 15th code units ([0x005C, 0x0055, 0x0030, "
+                   u8"0x0030, 0x0031, 0x0031, 0x0030, 0x0030, 0x0030, 0x0030]) "
+                   u8"in the UTF-16 input (\"hello\\\\U00110000\") passed to "
+                   u8"the function form the escape sequence '\\U00110000', "
+                   u8"which encodes the value U+110000. However, the output "
+                   u8"type is UTF-8, which can only encode values inclusively "
+                   u8"between U+0000 and U+10FFFF. As U+110000 falls outside "
+                   u8"this range, it cannot be encoded as UTF-8, and the "
+                   u8"function was terminated.", false,
+             true, false,
+             false},
+            {u"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), (same_as<wchar_t, InputChar>)
+                 ? (output_type == character_type_enum::utf16
+                        ? u8"The 6th to 15th code units ([0x005C, 0x0055, "
+                          u8"0x0030, 0x0030, 0x0031, 0x0031, 0x0030, 0x0030, "
+                          u8"0x0030, 0x0030]) in the UTF-16 input "
+                          u8"(\"hello\\\\U00110000\", encoded using wchar_t) "
+                          u8"passed to the function form the escape sequence "
+                          u8"'\\U00110000', which encodes the value U+110000. "
+                          u8"However, the output type is UTF-16, which can "
+                          u8"only encode values inclusively between U+0000 "
+                          u8"and U+10FFFF. As U+110000 falls outside this "
+                          u8"range, it cannot be encoded as UTF-16, and the "
+                          u8"function was terminated."
+                        : u8"The 6th to 15th code units ([0x005C, 0x0055, "
+                          u8"0x0030, 0x0030, 0x0031, 0x0031, 0x0030, 0x0030, "
+                          u8"0x0030, 0x0030]) in the UTF-16 input "
+                          u8"(\"hello\\\\U00110000\", encoded using wchar_t) "
+                          u8"passed to the function form the escape sequence "
+                          u8"'\\U00110000', which encodes the value U+110000. "
+                          u8"However, the output type is UTF-16 (encoded as "
+                          u8"wchar_t), which can only encode values "
+                          u8"inclusively between U+0000 and U+10FFFF. As "
+                          u8"U+110000 falls outside this range, it cannot be "
+                          u8"encoded as UTF-16, and the function was "
+                          u8"terminated.")
+                 : (output_type == character_type_enum::utf16
+                        ? u8"The 6th to 15th code units ([0x005C, 0x0055, "
+                          u8"0x0030, 0x0030, 0x0031, 0x0031, 0x0030, 0x0030, "
+                          u8"0x0030, 0x0030]) in the UTF-16 input "
+                          u8"(\"hello\\\\U00110000\") passed to the function "
+                          u8"form the escape sequence '\\U00110000', which "
+                          u8"encodes the value U+110000. However, the output "
+                          u8"type is UTF-16, which can only encode values "
+                          u8"inclusively between U+0000 and U+10FFFF. As "
+                          u8"U+110000 falls outside this range, it cannot be "
+                          u8"encoded as UTF-16, and the function was "
+                          u8"terminated."
+                        : u8"The 6th to 15th code units ([0x005C, 0x0055, "
+                          u8"0x0030, 0x0030, 0x0031, 0x0031, 0x0030, 0x0030, "
+                          u8"0x0030, 0x0030]) in the UTF-16 input "
+                          u8"(\"hello\\\\U00110000\") passed to the function "
+                          u8"form the escape sequence '\\U00110000', which "
+                          u8"encodes the value U+110000. However, the output "
+                          u8"type is UTF-16 (encoded as wchar_t), which can "
+                          u8"only encode values inclusively between U+0000 "
+                          u8"and U+10FFFF. As U+110000 falls outside this "
+                          u8"range, it cannot be encoded as UTF-16, and the "
+                          u8"function was terminated."),
+             false, false,
+             true, false},
+    };
+    initializer_list<tuple<
+        u32string,
+        from_formatted_string_error,
+        u8string,
+        bool,
+        bool,
+        bool,
+        bool>>
+        input_output_pairs_u32 = {
+            {U"hello" + mk_unicode<char32_t>({0x11'0000}),
+             from_formatted_string_error_factory::invalid_unicode_char(
+                 5, forward_scan_unicode_error_factory::invalid_utf32_code_point(
+                     static_cast<char32_t>(0x11'0000), is_wchar
+                 ), output_type
+             ), u8"The 6th code unit (0x110000) in the UTF-32 input "
+             u8"(\"hello\\U00110000\") passed to the function decodes to "
+             u8"U+110000. However, U+110000 falls outside the valid Unicode "
+             u8"range — valid Unicode scalar values must be inclusively "
+             u8"between U+0000 and U+10FFFF, excluding the surrogate range "
+             u8"U+D800 to U+DFFF. As U+110000 exceeds the maximum valid "
+             u8"codepoint, it cannot represent a valid Unicode scalar value, "
+             u8"and the function was terminated.", true,
+             true, true,
+             true},
+            {U"hello☺",
+             from_formatted_string_error_factory::ascii_out_of_range(
+                 5, U'☺', input_type
+             ), u8"The 6th code unit (0x0000263A) in the UTF-32 input "
+             u8"(\"hello☺\") passed to the function encodes the Unicode "
+             u8"scalar value U+263A ('☺'). However, the output type can only "
+             u8"encode valid ASCII values — valid ASCII values are "
+             u8"inclusively between U+0000 and U+007F. As U+263A falls "
+             u8"outside this range, it cannot be encoded as ASCII, and the "
+             u8"function was terminated.", true,
+             false, false,
+             false},
+            {U"hello\\" + mk_unicode<char32_t>({0x11'0000}),
+             from_formatted_string_error_factory::
+                 escape_char_then_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::
+                         invalid_utf32_code_point(
+                             static_cast<char32_t>(0x11'0000), is_wchar
+                         ), output_type
+                 ), u8"The 6th code unit is a backslash, which begins an escape "
+             u8"sequence. However, the character immediately following it "
+             u8"could not be decoded. The 7th code unit (0x110000) in the "
+             u8"UTF-32 input (\"hello\\\\\\U00110000\") passed to the function "
+             u8"decodes to U+110000. However, U+110000 falls outside the "
+             u8"valid Unicode range — valid Unicode scalar values must be "
+             u8"inclusively between U+0000 and U+10FFFF, excluding the "
+             u8"surrogate range U+D800 to U+DFFF. As U+110000 exceeds the "
+             u8"maximum valid codepoint, it cannot represent a valid Unicode "
+             u8"scalar value, and the function was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), u8"The 6th code unit (0x0000005C) in the UTF-32 input "
+             u8"(\"hello\\\\\") passed to the function is a backslash, "
+             u8"indicating the start of an escape sequence. However, the input "
+             u8"ended before the escape sequence could be completed. When the "
+             u8"output type is ASCII, the recognised escape sequences are "
+             u8"'\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', "
+             u8"'\\\"', "
+             u8"'\\'', '\\\\' and '\\x' (the last of which must be followed by "
+             u8"exactly two hexadecimal digits). As the escape sequence is "
+             u8"incomplete, it cannot be decoded, and the function was "
+             u8"terminated.", true,
+             false, false,
+             false},
+            {U"hello\\",
+             from_formatted_string_error_factory::escape_char_then_end_of_input(
+                 5, input_type, output_type
+             ), u8"The 6th code unit (0x0000005C) in the UTF-32 input "
+             u8"(\"hello\\\\\") passed to the function is a backslash, "
+             u8"indicating the start of an escape sequence. However, the input "
+             u8"ended before the escape sequence could be completed. When the "
+             u8"output type is a Unicode type, the recognised escape sequences "
+             u8"are '\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', "
+             u8"'\\\"', '\\'', '\\\\', '\\x', '\\u' and '\\U' (the last three "
+             u8"of which must be followed by exactly two, four and eight "
+             u8"hexadecimal digits, respectively). As the escape sequence is "
+             u8"incomplete, it cannot be decoded, and the function was "
+             u8"terminated.", false,
+             true, true,
+             true},
+            {U"hello\\u",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U'u', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x0000005C, 0x00000075]) in the "
+             u8"UTF-32 input (\"hello\\\\u\") passed to the function form an "
+             u8"escape sequence: a backslash followed by U+0075 ('u'). "
+             u8"However, this escape sequence is only recognised when the "
+             u8"output type is a Unicode type. When the output type is ASCII, "
+             u8"the recognised escape sequences are '\\0', '\\a', '\\b', "
+             u8"'\\t', '\\n', '\\v', '\\f', '\\r', '\\\"', '\\'', '\\\\' and "
+             u8"'\\x' (the last of which must be followed by exactly two "
+             u8"hexadecimal digits). As this escape sequence is not "
+             u8"recognised for this output type, it cannot be decoded, and "
+             u8"the function was terminated.", true,
+             false, false,
+             false},
+            {U"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x0000005C, 0x0000003B]) in the "
+             u8"UTF-32 input (\"hello\\\\;\") passed to the function form an "
+             u8"escape sequence: a backslash followed by U+003B (';'). "
+             u8"However, this is not a recognised escape sequence. When the "
+             u8"output type is a Unicode type, the recognised escape "
+             u8"sequences are '\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', "
+             u8"'\\r', '\\\"', '\\'', '\\\\', '\\x', '\\u' and '\\U' (the last "
+             u8"three of which must be followed by exactly two, four and "
+             u8"eight hexadecimal digits, respectively). As this escape "
+             u8"sequence is not recognised for this output type, it cannot be "
+             u8"decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {U"hello\\;",
+             from_formatted_string_error_factory::unrecognised_escape_char(
+                 5, U';', input_type, output_type
+             ), u8"The 6th and 7th code units ([0x0000005C, 0x0000003B]) in the "
+             u8"UTF-32 input (\"hello\\\\;\") passed to the function form an "
+             u8"escape sequence: a backslash followed by U+003B (';'). "
+             u8"However, this is not a recognised escape sequence. When the "
+             u8"output type is ASCII, the recognised escape sequences are "
+             u8"'\\0', '\\a', '\\b', '\\t', '\\n', '\\v', '\\f', '\\r', "
+             u8"'\\\"', "
+             u8"'\\'', '\\\\' and '\\x' (the last of which must be followed by "
+             u8"exactly two hexadecimal digits). As this escape sequence is "
+             u8"not recognised for this output type, it cannot be decoded, "
+             u8"and the function was terminated.", true,
+             false, false,
+             false},
+            {U"hello\\xF" + mk_unicode<char32_t>({0x11'0000}),
+             from_formatted_string_error_factory::
+                 reading_hex_unable_to_extract_unicode(
+                     5, forward_scan_unicode_error_factory::
+                         invalid_utf32_code_point(
+                             static_cast<char32_t>(0x11'0000), is_wchar
+                         ), "F",
+             1, 2,
+             output_type
+                 ), u8"The escape sequence '\\x' beginning at the 6th code unit must "
+             u8"be followed by exactly two hexadecimal digits. However, after "
+             u8"one hexadecimal digit (\"F\") was read, the next character "
+             u8"could not be decoded. The 9th code unit (0x110000) in the "
+             u8"UTF-32 input (\"hello\\\\xF\\U00110000\") passed to the "
+             u8"function decodes to U+110000. However, U+110000 falls outside "
+             u8"the valid Unicode range — valid Unicode scalar values must be "
+             u8"inclusively between U+0000 and U+10FFFF, excluding the "
+             u8"surrogate range U+D800 to U+DFFF. As U+110000 exceeds the "
+             u8"maximum valid codepoint, it cannot represent a valid Unicode "
+             u8"scalar value, and the function was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\x",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 2, "", input_type, output_type
+                 ), u8"The 6th and 7th code units ([0x0000005C, 0x00000078]) in the "
+             u8"UTF-32 input (\"hello\\\\x\") passed to the function form the "
+             u8"start of the escape sequence '\\x', which must be followed by "
+             u8"exactly two hexadecimal digits. However, the input ended "
+             u8"before any hexadecimal digits were read. As the escape "
+             u8"sequence is incomplete, it cannot be decoded, and the function "
+             u8"was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\u",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 0, 4, "", input_type, output_type
+                 ), u8"The 6th and 7th code units ([0x0000005C, 0x00000075]) in the "
+             u8"UTF-32 input (\"hello\\\\u\") passed to the function form the "
+             u8"start of the escape sequence '\\u', which must be followed by "
+             u8"exactly four hexadecimal digits. However, the input ended "
+             u8"before any hexadecimal digits were read. As the escape "
+             u8"sequence is incomplete, it cannot be decoded, and the function "
+             u8"was terminated.", false,
+             true, true,
+             true},
+            {U"hello\\xF",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 1, 2, "F", input_type, output_type
+                 ), u8"The 6th to 8th code units ([0x0000005C, 0x00000078, "
+             u8"0x00000046]) in the UTF-32 input (\"hello\\\\xF\") passed to "
+             u8"the function form the start of the escape sequence '\\x', "
+             u8"which must be followed by exactly two hexadecimal digits. "
+             u8"However, the input ended after only one hexadecimal digit "
+             u8"(\"F\") was read. As the escape sequence is incomplete, it "
+             u8"cannot be decoded, and the function was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\U0000F",
+             from_formatted_string_error_factory::
+                 reading_hex_end_of_input_found(
+                     5, 5, 8, "0000F", input_type, output_type
+                 ), u8"The 6th to 12th code units ([0x0000005C, 0x00000055, "
+             u8"0x00000030, 0x00000030, 0x00000030, 0x00000030, 0x00000046]) "
+             u8"in the UTF-32 input (\"hello\\\\U0000F\") passed to the "
+             u8"function form the start of the escape sequence '\\U', which "
+             u8"must be followed by exactly eight hexadecimal digits. However, "
+             u8"the input ended after only five hexadecimal digits (\"0000F\") "
+             u8"were read. As the escape sequence is incomplete, it cannot be "
+             u8"decoded, and the function was terminated.", false,
+             true, true,
+             true},
+            {U"hello\\xF☺",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'☺', 1, 2, "", input_type, output_type
+             ), u8"The 6th to 9th code units ([0x0000005C, 0x00000078, "
+             u8"0x00000046, 0x0000263A]) in the UTF-32 input "
+             u8"(\"hello\\\\xF☺\") passed to the function form the start of "
+             u8"the escape sequence '\\x', which must be followed by exactly "
+             u8"two hexadecimal digits. However, after one hexadecimal digit "
+             u8"(\"F\") was read, the next character, U+263A ('☺'), is not a "
+             u8"hexadecimal digit — hexadecimal digits must be inclusively "
+             u8"between '0' and '9', 'a' and 'f', or 'A' and 'F'. As the "
+             u8"escape sequence is invalid, it cannot be decoded, and the "
+             u8"function was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\xFg",
+             from_formatted_string_error_factory::invalid_hex_digit(
+                 5, U'g', 1, 2, "", input_type, output_type
+             ), u8"The 6th to 9th code units ([0x0000005C, 0x00000078, "
+             u8"0x00000046, 0x00000067]) in the UTF-32 input "
+             u8"(\"hello\\\\xFg\") passed to the function form the start of "
+             u8"the escape sequence '\\x', which must be followed by exactly "
+             u8"two hexadecimal digits. However, after one hexadecimal digit "
+             u8"(\"F\") was read, the next character, U+0067 ('g'), is not a "
+             u8"hexadecimal digit — hexadecimal digits must be inclusively "
+             u8"between '0' and '9', 'a' and 'f', or 'A' and 'F'. As the "
+             u8"escape sequence is invalid, it cannot be decoded, and the "
+             u8"function was terminated.", true,
+             true, true,
+             true},
+            {U"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), u8"The 6th to 15th code units ([0x0000005C, 0x00000055, "
+             u8"0x00000030, 0x00000030, 0x00000031, 0x00000031, 0x00000030, "
+             u8"0x00000030, 0x00000030, 0x00000030]) in the UTF-32 input "
+             u8"(\"hello\\\\U00110000\") passed to the function form the "
+             u8"escape sequence '\\U00110000', which encodes the value "
+             u8"U+110000. However, the output type is UTF-8, which can only "
+             u8"encode values inclusively between U+0000 and U+10FFFF. As "
+             u8"U+110000 falls outside this range, it cannot be encoded as "
+             u8"UTF-8, and the function was terminated.", false,
+             true, false,
+             false},
+            {U"hello\\U00110000",
+             from_formatted_string_error_factory::
+                 invalid_unicode_after_conversion(
+                     5, 8,
+             static_cast<char32_t>(0x11'0000),
+             "00110000", input_type,
+             output_type
+                 ), output_type == character_type_enum::utf16
+                 ? u8"The 6th to 15th code units ([0x0000005C, 0x00000055, "
+                   u8"0x00000030, 0x00000030, 0x00000031, 0x00000031, "
+                   u8"0x00000030, 0x00000030, 0x00000030, 0x00000030]) in the "
+                   u8"UTF-32 input (\"hello\\\\U00110000\") passed to the "
+                   u8"function form the escape sequence '\\U00110000', which "
+                   u8"encodes the value U+110000. However, the output type is "
+                   u8"UTF-16, which can only encode values inclusively between "
+                   u8"U+0000 and U+10FFFF. As U+110000 falls outside this "
+                   u8"range, it cannot be encoded as UTF-16, and the function "
+                   u8"was terminated."
+                 : u8"The 6th to 15th code units ([0x0000005C, 0x00000055, "
+                   u8"0x00000030, 0x00000030, 0x00000031, 0x00000031, "
+                   u8"0x00000030, 0x00000030, 0x00000030, 0x00000030]) in the "
+                   u8"UTF-32 input (\"hello\\\\U00110000\") passed to the "
+                   u8"function form the escape sequence '\\U00110000', which "
+                   u8"encodes the value U+110000. However, the output type is "
+                   u8"UTF-16 (encoded as wchar_t), which can only encode "
+                   u8"values inclusively between U+0000 and U+10FFFF. As "
+                   u8"U+110000 falls outside this range, it cannot be encoded "
+                   u8"as UTF-16, and the function was terminated.", false,
+             false, true,
+             false},
+    };
+    vector<tuple<
+        basic_string<InputChar>,
+        from_formatted_string_error,
+        u8string,
+        bool,
+        bool,
+        bool,
+        bool>>
+         rv;
+    auto fill_vector_func = [&]<typename T>(T list_arg)
+    {
+        for (auto& [unicode_str, error_obj, u8str, is_ascii, is_char8, is_char16, is_char32] :
+             list_arg)
+        {
+            rv.push_back(make_tuple(
+                spl_convert<InputChar>(unicode_str),
+                error_obj,
+                u8str,
+                is_ascii,
+                is_char8,
+                is_char16,
+                is_char32
+            ));
+        }
+    };
+    if constexpr (same_as<char8_t, InputChar>)
+    {
+        fill_vector_func(input_output_pairs_u8);
+    }
+    else if constexpr (same_as<char16_t, InputChar>)
+    {
+        fill_vector_func(input_output_pairs_u16);
+    }
+    else if constexpr (same_as<char32_t, InputChar>)
+    {
+        fill_vector_func(input_output_pairs_u32);
+    }
+    else if constexpr (same_as<wchar_t, InputChar>)
+    {
+        if constexpr (sizeof(InputChar) == 2)
+        {
+            fill_vector_func(input_output_pairs_u16);
+        }
+        else if constexpr (sizeof(InputChar) == 4)
+        {
+            fill_vector_func(input_output_pairs_u32);
+        }
+    }
+    return rv;
+}
+} // namespace unicode_bridge_test_cases
+
+TEST_CASE(
+    "from_formatted_unicode_string correct for incorrect char8_t arguments",
+    "[from_formatted_unicode_string]"
+)
+{
+    using namespace unicode_bridge;
+    using namespace std;
+    using namespace unicode_bridge_testing;
+    using namespace unicode_bridge_test_cases;
+    test_from_formatted_errors<char8_t>(
+        get_invalid_from_formatted_unicode_string_data<char8_t, char8_t>()
+    );
+    test_from_formatted_errors<char16_t>(
+        get_invalid_from_formatted_unicode_string_data<char8_t, char16_t>()
+    );
+    test_from_formatted_errors<char32_t>(
+        get_invalid_from_formatted_unicode_string_data<char8_t, char32_t>()
+    );
+    test_from_formatted_errors<wchar_t>(
+        get_invalid_from_formatted_unicode_string_data<char8_t, wchar_t>()
+    );
+    test_from_formatted_errors<char>(
+        get_invalid_from_formatted_unicode_string_data<char8_t, char>()
+    );
+}
+
+TEST_CASE(
+    "from_formatted_unicode_string correct for incorrect char16_t arguments",
+    "[from_formatted_unicode_string]"
+)
+{
+    using namespace unicode_bridge;
+    using namespace std;
+    using namespace unicode_bridge_testing;
+    using namespace unicode_bridge_test_cases;
+    test_from_formatted_errors<char8_t>(
+        get_invalid_from_formatted_unicode_string_data<char16_t, char8_t>()
+    );
+    test_from_formatted_errors<char16_t>(
+        get_invalid_from_formatted_unicode_string_data<char16_t, char16_t>()
+    );
+    test_from_formatted_errors<char32_t>(
+        get_invalid_from_formatted_unicode_string_data<char16_t, char32_t>()
+    );
+    test_from_formatted_errors<wchar_t>(
+        get_invalid_from_formatted_unicode_string_data<char16_t, wchar_t>()
+    );
+    test_from_formatted_errors<char>(
+        get_invalid_from_formatted_unicode_string_data<char16_t, char>()
+    );
+}
+
+TEST_CASE(
+    "from_formatted_unicode_string correct for incorrect char32_t arguments",
+    "[from_formatted_unicode_string]"
+)
+{
+    using namespace unicode_bridge;
+    using namespace std;
+    using namespace unicode_bridge_testing;
+    using namespace unicode_bridge_test_cases;
+    test_from_formatted_errors<char8_t>(
+        get_invalid_from_formatted_unicode_string_data<char32_t, char8_t>()
+    );
+    test_from_formatted_errors<char16_t>(
+        get_invalid_from_formatted_unicode_string_data<char32_t, char16_t>()
+    );
+    test_from_formatted_errors<char32_t>(
+        get_invalid_from_formatted_unicode_string_data<char32_t, char32_t>()
+    );
+    test_from_formatted_errors<wchar_t>(
+        get_invalid_from_formatted_unicode_string_data<char32_t, wchar_t>()
+    );
+    test_from_formatted_errors<char>(
+        get_invalid_from_formatted_unicode_string_data<char32_t, char>()
+    );
+}
+
+TEST_CASE(
+    "from_formatted_unicode_string correct for incorrect wchar_t arguments",
+    "[from_formatted_unicode_string]"
+)
+{
+    using namespace unicode_bridge;
+    using namespace std;
+    using namespace unicode_bridge_testing;
+    using namespace unicode_bridge_test_cases;
+    test_from_formatted_errors<char8_t>(
+        get_invalid_from_formatted_unicode_string_data<wchar_t, char8_t>()
+    );
+    test_from_formatted_errors<char16_t>(
+        get_invalid_from_formatted_unicode_string_data<wchar_t, char16_t>()
+    );
+    test_from_formatted_errors<char32_t>(
+        get_invalid_from_formatted_unicode_string_data<wchar_t, char32_t>()
+    );
+    test_from_formatted_errors<wchar_t>(
+        get_invalid_from_formatted_unicode_string_data<wchar_t, wchar_t>()
+    );
+    test_from_formatted_errors<char>(
+        get_invalid_from_formatted_unicode_string_data<wchar_t, char>()
+    );
+}
+
+TEST_CASE(
+    "next_formatted_unicode_char reports end_of_input for an empty range",
+    "[next_formatted_unicode_char]"
+)
+{
+    using namespace unicode_bridge;
+    using namespace std;
+    const string expected = cast_ascii<char>(
+        u8"The current iterator passed to the function was equal to the end "
+        u8"iterator — signifying that there were no more code units to read, "
+        u8"and the function was terminated."
+    );
+
+    auto check = [&]<typename OutputChar, typename CharT>(
+        const basic_string<CharT>&input_arg,
+        const size_t               offset_arg
+        )
+    {
+        INFO("CharT = " << typeid(CharT).name()
+            << ", OutputChar = " << typeid(OutputChar).name()
+            << ", offset = " << offset_arg);
+        const basic_string_view<CharT> sv(input_arg);
+        const auto                     it = sv.begin() + offset_arg;
+
+        // Error-returning version.
+        auto res = next_formatted_unicode_char<OutputChar>(it, sv.end());
+        REQUIRE_FALSE(res.has_value());
+        CHECK(
+            res.error().code()
+            == from_formatted_string_error::error_code::end_of_input
+        );
+        CHECK(cast_ascii<char>(res.error().message()) == expected);
+        CHECK(cast_ascii<char>(res.error().message(it, sv.end())) == expected);
+
+        // Optional-returning version agrees.
+        CHECK_FALSE(
+            next_formatted_unicode_char_no_error<OutputChar>(it, sv.end())
+            .has_value()
+        );
+    };
+
+    // Empty input, and an iterator already at the end of a non-empty input.
+    auto check_all_outputs = [&]<typename CharT>(
+        const basic_string<CharT>&input_arg,
+        const size_t               offset_arg
+        )
+    {
+        check.template operator() < char > (input_arg, offset_arg);
+        check.template operator() < char8_t > (input_arg, offset_arg);
+        check.template operator() < char16_t > (input_arg, offset_arg);
+        check.template operator() < char32_t > (input_arg, offset_arg);
+        check.template operator() < wchar_t > (input_arg, offset_arg);
+    };
+    check_all_outputs(u8string(), 0);
+    check_all_outputs(u8string(u8"hello"), 5);
+    check_all_outputs(u16string(), 0);
+    check_all_outputs(u16string(u"hello"), 5);
+    check_all_outputs(u32string(), 0);
+    check_all_outputs(u32string(U"hello"), 5);
+}
+
+namespace unicode_bridge_testing
+{
 template <typename T, typename U, typename V>
 inline void
     test_errors(
@@ -5791,11 +7347,11 @@ std::vector<std::tuple<
              ), u8"The 11th code unit (0xF8) in the UTF-8 input "
              u8"passed to the function was found to be an invalid leading "
              u8"byte. A valid leading "
-             u8"byte "
-             u8"must "
+             u8"byte must "
              u8"be inclusively within one of the following ranges: 0x00 to "
              u8"0x7F "
-             u8"(single-byte sequence), 0xC0 to 0xDF (two-byte sequence), 0xE0 "
+             u8"(single-byte sequence), 0xC0 to 0xDF (two-byte sequence), "
+             u8"0xE0 "
              u8"to 0xEF (three-byte sequence), or 0xF0 to 0xF7 (four-byte "
              u8"sequence). As 0xF8 falls outside all of these ranges, it "
              u8"cannot "
@@ -5807,7 +7363,8 @@ std::vector<std::tuple<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_2_found_1
                  ), 0
-             ), u8"The 1st code unit (0xC2) in the UTF-8 input (\"A very lo...\") "
+             ), u8"The 1st code unit (0xC2) in the UTF-8 input (\"A very "
+             u8"lo...\") "
              u8"passed to "
              u8"the function was found to be a valid "
              u8"leading byte, indicating the "
@@ -5830,10 +7387,13 @@ std::vector<std::tuple<
              u8"passed to "
              u8"the function was found to be a valid "
              u8"leading byte, indicating the start of a three-byte "
-             u8"sequence. However, the input ended after the first code unit — "
+             u8"sequence. However, the input ended after the first code "
+             u8"unit — "
              u8"two "
-             u8"continuation bytes were expected but none were present. As the "
-             u8"sequence is incomplete, it cannot represent a valid Unicode "
+             u8"continuation bytes were expected but none were present. As "
+             u8"the "
+             u8"sequence is incomplete, it cannot represent a valid "
+             u8"Unicode "
              u8"scalar "
              u8"value, and the function was terminated.", u8"Cutoff at the start"},
             {unicode_conversion_error(
@@ -5842,15 +7402,19 @@ std::vector<std::tuple<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_1
                  ), 0
-             ), u8"The 15th code unit (0xE2) in the UTF-8 input (\"...    in the "
+             ), u8"The 15th code unit (0xE2) in the UTF-8 input (\"...    in "
+             u8"the "
              u8"middle...\") "
              u8"passed to "
              u8"the function was found to be a valid "
              u8"leading byte, indicating the start of a four-byte "
-             u8"sequence. However, the input ended after the first code unit — "
+             u8"sequence. However, the input ended after the first code "
+             u8"unit — "
              u8"three "
-             u8"continuation bytes were expected but none were present. As the "
-             u8"sequence is incomplete, it cannot represent a valid Unicode "
+             u8"continuation bytes were expected but none were present. As "
+             u8"the "
+             u8"sequence is incomplete, it cannot represent a valid "
+             u8"Unicode "
              u8"scalar "
              u8"value, and the function was terminated.", u8"Cutoff    in the middle       but nowhere else"},
             {unicode_conversion_error(
@@ -5862,15 +7426,19 @@ std::vector<std::tuple<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_3_found_2
                  ), 0
-             ), u8"The 9th and 10th code units ([0xE2, 0x80]) in the UTF-8 input "
+             ), u8"The 9th and 10th code units ([0xE2, 0x80]) in the UTF-8 "
+             u8"input "
              u8"(\"maximum size12345\") "
              u8"passed to the function form the start of a "
              u8"three-byte sequence. However, the input ended after the "
              u8"second "
-             u8"code unit — one further continuation byte was expected but was "
+             u8"code unit — one further continuation byte was expected but "
+             u8"was "
              u8"not "
-             u8"present. As the sequence is incomplete, it cannot represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", u8"maximum size12345"},
+             u8"present. As the sequence is incomplete, it cannot "
+             u8"represent a "
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", u8"maximum size12345"},
             {unicode_conversion_error(
                  8, forward_scan_unicode_error_factory::truncated_sequence(
                      {static_cast<char8_t>(0xF0),
@@ -5880,15 +7448,19 @@ std::vector<std::tuple<
              forward_scan_unicode_error::truncated_sequence_sub_error::
                          expected_4_found_2
                  ), 0
-             ), u8"The 9th and 10th code units ([0xF0, 0x90]) in the UTF-8 input "
+             ), u8"The 9th and 10th code units ([0xF0, 0x90]) in the UTF-8 "
+             u8"input "
              u8"(\"maximum sizé12345\") "
              u8"passed to the function form the start of a "
-             u8"four-byte sequence. However, the input ended after the second "
-             u8"code unit — two further continuation bytes were expected but "
+             u8"four-byte sequence. However, the input ended after the "
+             u8"second "
+             u8"code unit — two further continuation bytes were expected "
+             u8"but "
              u8"none "
              u8"were present. As the sequence is incomplete, it cannot "
              u8"represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", u8"maximum sizé12345"},
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", u8"maximum sizé12345"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::truncated_sequence(
                      {static_cast<char8_t>(0xF0),
@@ -5903,10 +7475,11 @@ std::vector<std::tuple<
              u8"form the start of a four-byte sequence. However, the input "
              u8"ended after the third code unit — one further continuation "
              u8"byte was expected but was not present. As the sequence is "
-             u8"incomplete, it cannot represent a valid Unicode scalar value, "
+             u8"incomplete, it cannot represent a valid Unicode scalar "
+             u8"value, "
              u8"and the function was terminated.", u8"ééééééééééééééffff"},
-            // For above case: 10-12 is 3 bytes. the 1 byte after that is the
-            // 1st element, then 7 chars after.
+            // For above case: 10-12 is 3 bytes. the 1 byte after that is
+            // the 1st element, then 7 chars after.
             {unicode_conversion_error(
                  20, forward_scan_unicode_error_factory::invalid_continuation_byte(
                      {static_cast<char8_t>(0xC2),
@@ -5917,16 +7490,21 @@ std::vector<std::tuple<
                          invalid_continuation_byte_sub_error::
                              size_2_invalid_indexes_1
                  ), 0
-             ), u8"The 21st and 22nd code units ([0xC2, 0x20]) in the UTF-8 input "
+             ), u8"The 21st and 22nd code units ([0xC2, 0x20]) in the UTF-8 "
+             u8"input "
              u8"(\"...ééééééééééééééééé...\") "
              u8"passed to the function form the start of a "
-             u8"two-byte sequence. The second code unit (0x20) was expected to "
+             u8"two-byte sequence. The second code unit (0x20) was "
+             u8"expected to "
              u8"be "
-             u8"a continuation byte, but was not — a valid continuation byte "
+             u8"a continuation byte, but was not — a valid continuation "
+             u8"byte "
              u8"must "
-             u8"be inclusively between 0x80 and 0xBF. As 0x20 falls outside "
+             u8"be inclusively between 0x80 and 0xBF. As 0x20 falls "
+             u8"outside "
              u8"this "
-             u8"range, the sequence cannot represent a valid Unicode scalar "
+             u8"range, the sequence cannot represent a valid Unicode "
+             u8"scalar "
              u8"value, and the function was terminated.", u8"éééééééééééééééééééééééééé"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -5944,11 +7522,15 @@ std::vector<std::tuple<
              u8"to the function form "
              u8"the start of a three-byte sequence. The second code unit "
              u8"(0x20) "
-             u8"was expected to be a continuation byte, but was not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"was expected to be a continuation byte, but was not — a "
+             u8"valid "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"0x20 falls outside this range, the sequence cannot represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", mk_unicode<char8_t>(
+             u8"0x20 falls outside this range, the sequence cannot "
+             u8"represent a "
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", mk_unicode<char8_t>(
                  {0xE2, 0x80, 0x20, 0xE2, 0x80, 0x20, 0xE2, 0x80, 0x20},
              u8"hello"
              )},
@@ -5963,15 +7545,20 @@ std::vector<std::tuple<
                              size_3_invalid_indexes_2
                  ), 0
              ), u8"The 1st to 3rd code units ([0xE2, 0x80, 0x20]) in the "
-             u8"UTF-8 input (\"hello\\xE2\\x80 \\xE2\\x80 ...\") passed to the "
+             u8"UTF-8 input (\"hello\\xE2\\x80 \\xE2\\x80 ...\") passed to "
+             u8"the "
              u8"function form "
-             u8"the start of a three-byte sequence. The third code unit (0x20) "
+             u8"the start of a three-byte sequence. The third code unit "
+             u8"(0x20) "
              u8"was "
              u8"expected to be a continuation byte, but was not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"0x20 falls outside this range, the sequence cannot represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", u8string(u8"hello")
+             u8"0x20 falls outside this range, the sequence cannot "
+             u8"represent a "
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", u8string(u8"hello")
                  + mk_unicode<char8_t>(
                      {0xE2, 0x80, 0x20, 0xE2, 0x80, 0x20, 0xE2, 0x80, 0x20}
                  )},
@@ -5988,13 +7575,17 @@ std::vector<std::tuple<
              ), u8"The 11th to 13th code units ([0xE2, 0x20, 0x21]) in the "
              u8"UTF-8 input (\"...\\xC3 superb owls hello\") passed to the "
              u8"function form "
-             u8"the start of a three-byte sequence. The second and third code "
-             u8"units (0x20 and 0x21) were expected to be continuation bytes, "
+             u8"the start of a three-byte sequence. The second and third "
+             u8"code "
+             u8"units (0x20 and 0x21) were expected to be continuation "
+             u8"bytes, "
              u8"but "
              u8"were not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"both are outside this range, the sequence cannot represent a "
+             u8"both are outside this range, the sequence cannot represent "
+             u8"a "
              u8"valid "
              u8"Unicode scalar value, and the function was terminated.", mk_unicode<char8_t>(
                  {0xC3, 0x20, 0xC3, 0x20}, u8"superb owls hello"
@@ -6011,15 +7602,20 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x80, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The second "
+             u8"function form the start of a four-byte sequence. The "
+             u8"second "
              u8"code "
-             u8"unit (0x20) was expected to be a continuation byte, but was "
+             u8"unit (0x20) was expected to be a continuation byte, but "
+             u8"was "
              u8"not — "
              u8"a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"0x20 falls outside this range, the sequence cannot represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", u8"<string>"},
+             u8"0x20 falls outside this range, the sequence cannot "
+             u8"represent a "
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", u8"<string>"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_continuation_byte(
                      {static_cast<char8_t>(0xF0),
@@ -6034,13 +7630,17 @@ std::vector<std::tuple<
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form the start of a four-byte sequence. The third "
              u8"code "
-             u8"unit (0x20) was expected to be a continuation byte, but was "
+             u8"unit (0x20) was expected to be a continuation byte, but "
+             u8"was "
              u8"not — "
              u8"a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"0x20 falls outside this range, the sequence cannot represent a "
-             u8"valid Unicode scalar value, and the function was terminated.", u8"<string>"},
+             u8"0x20 falls outside this range, the sequence cannot "
+             u8"represent a "
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.", u8"<string>"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_continuation_byte(
                      {static_cast<char8_t>(0xF0),
@@ -6053,13 +7653,18 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x90, 0x80, "
              u8"0x20]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The fourth "
+             u8"function form the start of a four-byte sequence. The "
+             u8"fourth "
              u8"code "
-             u8"unit (0x20) was expected to be a continuation byte, but was "
+             u8"unit (0x20) was expected to be a continuation byte, but "
+             u8"was "
              u8"not — "
-             u8"a valid continuation byte must be inclusively between 0x80 and "
-             u8"0xBF. As 0x20 falls outside this range, the sequence cannot "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"a valid continuation byte must be inclusively between 0x80 "
+             u8"and "
+             u8"0xBF. As 0x20 falls outside this range, the sequence "
+             u8"cannot "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", u8"<string>"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_continuation_byte(
@@ -6073,14 +7678,17 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x21, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The second "
+             u8"function form the start of a four-byte sequence. The "
+             u8"second "
              u8"and "
              u8"third code units (0x20 and 0x21) were expected to be "
              u8"continuation "
              u8"bytes, but were not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"both are outside this range, the sequence cannot represent a "
+             u8"both are outside this range, the sequence cannot represent "
+             u8"a "
              u8"valid "
              u8"Unicode scalar value, and the function was terminated.", u8"<string>"},
             {unicode_conversion_error(
@@ -6095,13 +7703,16 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x90, 0x20, "
              u8"0x21]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The third and "
+             u8"function form the start of a four-byte sequence. The third "
+             u8"and "
              u8"fourth code units (0x20 and 0x21) were expected to be "
              u8"continuation "
              u8"bytes, but were not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"both are outside this range, the sequence cannot represent a "
+             u8"both are outside this range, the sequence cannot represent "
+             u8"a "
              u8"valid "
              u8"Unicode scalar value, and the function was terminated.", u8"<string>"},
             {unicode_conversion_error(
@@ -6116,14 +7727,17 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x80, "
              u8"0x21]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The second "
+             u8"function form the start of a four-byte sequence. The "
+             u8"second "
              u8"and "
              u8"fourth code units (0x20 and 0x21) were expected to be "
              u8"continuation "
              u8"bytes, but were not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
-             u8"both are outside this range, the sequence cannot represent a "
+             u8"both are outside this range, the sequence cannot represent "
+             u8"a "
              u8"valid "
              u8"Unicode scalar value, and the function was terminated.", u8"<string>"},
             {unicode_conversion_error(
@@ -6138,11 +7752,13 @@ std::vector<std::tuple<
                  ), 0
              ), u8"The 11th to 14th code units ([0xF0, 0x20, 0x21, "
              u8"0x22]) in the UTF-8 input (\"<string>\") passed to the "
-             u8"function form the start of a four-byte sequence. The second, "
+             u8"function form the start of a four-byte sequence. The "
+             u8"second, "
              u8"third and fourth code units (0x20, 0x21 and 0x22) were "
              u8"expected to "
              u8"be continuation bytes, but were not — a valid "
-             u8"continuation byte must be inclusively between 0x80 and 0xBF. "
+             u8"continuation byte must be inclusively between 0x80 and "
+             u8"0xBF. "
              u8"As "
              u8"all three are "
              u8"outside "
@@ -6157,19 +7773,23 @@ std::vector<std::tuple<
                       static_cast<char8_t>(0x00)},
              2, static_cast<char32_t>(0x0)
                  ), 0
-             ), u8"The 11th and 12th code units ([0xC0, 0x80]) in the UTF-8 input "
+             ), u8"The 11th and 12th code units ([0xC0, 0x80]) in the UTF-8 "
+             u8"input "
              u8"(\"<string>\") "
              u8"passed to the function form a two-byte "
              u8"sequence encoding U+0000. This is an overlong encoding — "
-             u8"U+0000 can be represented using a single byte (0x00), which is "
+             u8"U+0000 can be represented using a single byte (0x00), "
+             u8"which is "
              u8"the "
              u8"shortest valid UTF-8 representation. The UTF-8 standard "
              u8"requires "
              u8"that code points are always encoded using the shortest "
              u8"possible "
-             u8"sequence. As this requirement is not met, the sequence does "
+             u8"sequence. As this requirement is not met, the sequence "
+             u8"does "
              u8"not "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", u8"<string>"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::overlong_encoding(
@@ -6184,10 +7804,13 @@ std::vector<std::tuple<
              u8"three-byte sequence encoding U+0000. This is an overlong "
              u8"encoding — U+0000 can be represented using a single byte "
              u8"(0x00), "
-             u8"which is the shortest valid UTF-8 representation. The UTF-8 "
-             u8"standard requires that code points are always encoded using "
+             u8"which is the shortest valid UTF-8 representation. The "
+             u8"UTF-8 "
+             u8"standard requires that code points are always encoded "
+             u8"using "
              u8"the "
-             u8"shortest possible sequence. As this requirement is not met, "
+             u8"shortest possible sequence. As this requirement is not "
+             u8"met, "
              u8"the "
              u8"sequence does not represent a valid Unicode scalar "
              u8"value, and the function was terminated.", u8"<string>"},
@@ -6203,10 +7826,13 @@ std::vector<std::tuple<
              u8"UTF"
              u8"-8 input (\"<string>\") passed to the function form a "
              u8"three-byte sequence encoding U+07FF. This is an overlong "
-             u8"encoding — U+07FF can be represented using two bytes ([0xDF, "
-             u8"0xBF]), which is the shortest valid UTF-8 representation. The "
+             u8"encoding — U+07FF can be represented using two bytes "
+             u8"([0xDF, "
+             u8"0xBF]), which is the shortest valid UTF-8 representation. "
+             u8"The "
              u8"UTF"
-             u8"-8 standard requires that code points are always encoded using "
+             u8"-8 standard requires that code points are always encoded "
+             u8"using "
              u8"the shortest possible sequence. As this requirement is not "
              u8"met, "
              u8"the sequence does not represent a valid Unicode scalar "
@@ -6222,11 +7848,14 @@ std::vector<std::tuple<
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0x80, "
              u8"0x80]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+0000. This "
-             u8"is an overlong encoding — U+0000 can be represented using a "
+             u8"is an overlong encoding — U+0000 can be represented using "
+             u8"a "
              u8"single "
-             u8"byte (0x00), which is the shortest valid UTF-8 representation. "
+             u8"byte (0x00), which is the shortest valid UTF-8 "
+             u8"representation. "
              u8"The "
-             u8"UTF-8 standard requires that code points are always encoded "
+             u8"UTF-8 standard requires that code points are always "
+             u8"encoded "
              u8"using "
              u8"the shortest possible sequence. As this requirement is not "
              u8"met, "
@@ -6243,11 +7872,14 @@ std::vector<std::tuple<
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0x80, "
              u8"0xBF]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+003F. This "
-             u8"is an overlong encoding — U+003F can be represented using a "
+             u8"is an overlong encoding — U+003F can be represented using "
+             u8"a "
              u8"single "
-             u8"byte (0x3F), which is the shortest valid UTF-8 representation. "
+             u8"byte (0x3F), which is the shortest valid UTF-8 "
+             u8"representation. "
              u8"The "
-             u8"UTF-8 standard requires that code points are always encoded "
+             u8"UTF-8 standard requires that code points are always "
+             u8"encoded "
              u8"using "
              u8"the shortest possible sequence. As this requirement is not "
              u8"met, "
@@ -6264,11 +7896,15 @@ std::vector<std::tuple<
              ), u8"The 11th to 14th code units ([0xF0, 0x80, 0xBF, "
              u8"0xBF]) in the UTF-8 input (\"<string>\") passed to the "
              u8"function form a four-byte sequence encoding U+0FFF. "
-             u8"This is an overlong encoding — U+0FFF can be represented using "
-             u8"three bytes ([0xE0, 0xBF, 0xBF]), which is the shortest valid "
-             u8"UTF-8 representation. The UTF-8 standard requires that code "
+             u8"This is an overlong encoding — U+0FFF can be represented "
+             u8"using "
+             u8"three bytes ([0xE0, 0xBF, 0xBF]), which is the shortest "
+             u8"valid "
+             u8"UTF-8 representation. The UTF-8 standard requires that "
+             u8"code "
              u8"points "
-             u8"are always encoded using the shortest possible sequence. As "
+             u8"are always encoded using the shortest possible sequence. "
+             u8"As "
              u8"this "
              u8"requirement is not met, the sequence does not represent a "
              u8"valid "
@@ -6286,11 +7922,14 @@ std::vector<std::tuple<
              u8"UTF-8 input (\"<string>\") passed to the function form a "
              u8"three-byte sequence encoding U+D800. However, U+D800 falls "
              u8"outside "
-             u8"the valid Unicode range — valid Unicode scalar values must be "
+             u8"the valid Unicode range — valid Unicode scalar values must "
+             u8"be "
              u8"inclusively between U+0000 and U+10FFFF, excluding the "
              u8"surrogate "
-             u8"range U+D800 to U+DFFF. As U+D800 falls within the surrogate "
-             u8"range, it cannot represent a valid Unicode scalar value, and "
+             u8"range U+D800 to U+DFFF. As U+D800 falls within the "
+             u8"surrogate "
+             u8"range, it cannot represent a valid Unicode scalar value, "
+             u8"and "
              u8"the "
              u8"function was terminated.", u8"<string>"},
             {unicode_conversion_error(
@@ -6307,11 +7946,14 @@ std::vector<std::tuple<
              u8"function form a four-byte sequence encoding U+110000. "
              u8"However, U+110000 falls outside the valid Unicode range — "
              u8"valid "
-             u8"Unicode scalar values must be inclusively between U+0000 and "
-             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. As "
+             u8"Unicode scalar values must be inclusively between U+0000 "
+             u8"and "
+             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. "
+             u8"As "
              u8"U+110000 exceeds the maximum valid codepoint, it cannot "
              u8"represent "
-             u8"a valid Unicode scalar value, and the function was terminated.", u8"<string>"},
+             u8"a valid Unicode scalar value, and the function was "
+             u8"terminated.", u8"<string>"},
     };
     vector<tuple<unicode_conversion_error, u8string, optional<u16string>>>
         u16_input_output_pairs = {
@@ -6320,30 +7962,38 @@ std::vector<std::tuple<
                      high_surrogate_then_end_of_stream(
                          static_cast<char16_t>(0xD800), false
                      ), 0
-             ), u8"The 11th code unit (0xD800) in the UTF-16 input (\"hello\") "
+             ), u8"The 11th code unit (0xD800) in the UTF-16 input "
+             u8"(\"hello\") "
              u8"passed to the function is a high surrogate, "
-             u8"indicating the start of a surrogate pair. However, the input "
+             u8"indicating the start of a surrogate pair. However, the "
+             u8"input "
              u8"ended "
-             u8"after this code unit — a low surrogate was expected to follow "
+             u8"after this code unit — a low surrogate was expected to "
+             u8"follow "
              u8"but "
              u8"was not present. As the surrogate pair is incomplete, it "
              u8"cannot "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", u"hello"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::
                      high_surrogate_then_end_of_stream(
                          static_cast<char16_t>(0xD800), true
                      ), 0
-             ), u8"The 11th code unit (0xD800) in the UTF-16 input (encoded using "
+             ), u8"The 11th code unit (0xD800) in the UTF-16 input (encoded "
+             u8"using "
              u8"wchar_t) passed to the function is a high surrogate, "
-             u8"indicating the start of a surrogate pair. However, the input "
+             u8"indicating the start of a surrogate pair. However, the "
+             u8"input "
              u8"ended "
-             u8"after this code unit — a low surrogate was expected to follow "
+             u8"after this code unit — a low surrogate was expected to "
+             u8"follow "
              u8"but "
              u8"was not present. As the surrogate pair is incomplete, it "
              u8"cannot "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", std::nullopt},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::
@@ -6352,9 +8002,11 @@ std::vector<std::tuple<
              static_cast<char16_t>(0xD800),
              false
                      ), 0
-             ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the UTF-16 "
+             ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the "
+             u8"UTF-16 "
              u8"input (\"\\uD800\") passed to the function form the "
-             u8"start of a surrogate pair. The first code unit (0xDBFF) is a "
+             u8"start of a surrogate pair. The first code unit (0xDBFF) is "
+             u8"a "
              u8"high "
              u8"surrogate, which must be followed by a low surrogate "
              u8"inclusively "
@@ -6362,7 +8014,8 @@ std::vector<std::tuple<
              u8"(0xD800) "
              u8"falls outside this range, and therefore the two code units "
              u8"cannot "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", mk_unicode<char16_t>({0xD800})},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::
@@ -6371,11 +8024,13 @@ std::vector<std::tuple<
              static_cast<char16_t>(0xD800),
              true
                      ), 0
-             ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the UTF-16 "
+             ), u8"The 11th and 12th code units ([0xDBFF, 0xD800]) in the "
+             u8"UTF-16 "
              u8"input (\"<string>\", encoded using wchar_t) passed to "
              u8"the "
              u8"function form the "
-             u8"start of a surrogate pair. The first code unit (0xDBFF) is a "
+             u8"start of a surrogate pair. The first code unit (0xDBFF) is "
+             u8"a "
              u8"high "
              u8"surrogate, which must be followed by a low surrogate "
              u8"inclusively "
@@ -6383,7 +8038,8 @@ std::vector<std::tuple<
              u8"(0xD800) "
              u8"falls outside this range, and therefore the two code units "
              u8"cannot "
-             u8"represent a valid Unicode scalar value, and the function was "
+             u8"represent a valid Unicode scalar value, and the function "
+             u8"was "
              u8"terminated.", u"<string>"},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::unexpected_low_surrogate(
@@ -6393,7 +8049,8 @@ std::vector<std::tuple<
              u8"string>\") passed to "
              u8"the function is a low surrogate. Low "
              u8"surrogates must always be preceded by a high surrogate "
-             u8"(inclusively between 0xD800 and 0xDBFF) as the second part of "
+             u8"(inclusively between 0xD800 and 0xDBFF) as the second part "
+             u8"of "
              u8"a "
              u8"surrogate pair. As this low surrogate appears without a "
              u8"preceding "
@@ -6406,12 +8063,14 @@ std::vector<std::tuple<
              ), u8"The 11th code unit (0xDC00) in the UTF-16 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function is a low "
-             u8"surrogate. Low surrogates must always be preceded by a high "
+             u8"surrogate. Low surrogates must always be preceded by a "
+             u8"high "
              u8"surrogate (inclusively between 0xD800 and 0xDBFF) as the "
              u8"second "
              u8"part of a surrogate pair. As this low surrogate appears "
              u8"without a "
-             u8"preceding high surrogate, it cannot represent a valid Unicode "
+             u8"preceding high surrogate, it cannot represent a valid "
+             u8"Unicode "
              u8"scalar value, and the function was terminated.", u"<string>"},
     };
     vector<tuple<unicode_conversion_error, u8string, optional<u32string>>>
@@ -6420,17 +8079,21 @@ std::vector<std::tuple<
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0xD800),    false
                  ),    0
-             ),    u8"The 11th code unit (0xD800) in the UTF-32 input (\"\\uD800\") "
+             ),    u8"The 11th code unit (0xD800) in the UTF-32 input "
+             u8"(\"\\uD800\") "
              u8"passed to "
              u8"the function decodes to U+D800. However, "
-             u8"U+D800 falls outside the valid Unicode range — valid Unicode "
+             u8"U+D800 falls outside the valid Unicode range — valid "
+             u8"Unicode "
              u8"scalar "
              u8"values must be inclusively between U+0000 and U+10FFFF, "
              u8"excluding "
-             u8"the surrogate range U+D800 to U+DFFF. As U+D800 falls within "
+             u8"the surrogate range U+D800 to U+DFFF. As U+D800 falls "
+             u8"within "
              u8"the "
-             u8"surrogate range, it cannot represent a valid Unicode scalar "
-             u8"value, and the function was terminated.",                         mk_unicode<char32_t>({0xD800})},
+             u8"surrogate range, it cannot represent a valid Unicode "
+             u8"scalar "
+             u8"value, and the function was terminated.",        mk_unicode<char32_t>({0xD800})},
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0x11'0000), false
@@ -6438,14 +8101,17 @@ std::vector<std::tuple<
              ), u8"The 11th code unit (0x110000) in the UTF-32 input (\"<"
              u8"string>\") passed to "
              u8"the function decodes to U+110000. However, "
-             u8"U+110000 falls outside the valid Unicode range — valid Unicode "
+             u8"U+110000 falls outside the valid Unicode range — valid "
+             u8"Unicode "
              u8"scalar "
              u8"values must be inclusively between U+0000 and U+10FFFF, "
              u8"excluding "
-             u8"the surrogate range U+D800 to U+DFFF. As U+110000 exceeds the "
-             u8"maximum valid codepoint, it cannot represent a valid Unicode "
+             u8"the surrogate range U+D800 to U+DFFF. As U+110000 exceeds "
+             u8"the "
+             u8"maximum valid codepoint, it cannot represent a valid "
+             u8"Unicode "
              u8"scalar "
-             u8"value, and the function was terminated.",                      U"<string>"                   },
+             u8"value, and the function was terminated.",     U"<string>"                   },
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0xD800),    true
@@ -6453,15 +8119,19 @@ std::vector<std::tuple<
              ),    u8"The 11th code unit (0xD800) in the UTF-32 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function decodes to "
-             u8"U+D800. However, U+D800 falls outside the valid Unicode range "
+             u8"U+D800. However, U+D800 falls outside the valid Unicode "
+             u8"range "
              u8"— "
-             u8"valid Unicode scalar values must be inclusively between U+0000 "
+             u8"valid Unicode scalar values must be inclusively between "
+             u8"U+0000 "
              u8"and "
-             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. As "
+             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. "
+             u8"As "
              u8"U+D800 "
-             u8"falls within the surrogate range, it cannot represent a valid "
+             u8"falls within the surrogate range, it cannot represent a "
+             u8"valid "
              u8"Unicode "
-             u8"scalar value, and the function was terminated.",                  U"<string>"                   },
+             u8"scalar value, and the function was terminated.", U"<string>"                   },
             {unicode_conversion_error(
                  10, forward_scan_unicode_error_factory::invalid_utf32_code_point(
                      static_cast<char32_t>(0x11'0000), true
@@ -6469,16 +8139,20 @@ std::vector<std::tuple<
              ), u8"The 11th code unit (0x110000) in the UTF-32 input (\"<"
              u8"string>\", encoded using "
              u8"wchar_t) passed to the function decodes to "
-             u8"U+110000. However, U+110000 falls outside the valid Unicode "
+             u8"U+110000. However, U+110000 falls outside the valid "
+             u8"Unicode "
              u8"range "
              u8"— "
-             u8"valid Unicode scalar values must be inclusively between U+0000 "
+             u8"valid Unicode scalar values must be inclusively between "
+             u8"U+0000 "
              u8"and "
-             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. As "
+             u8"U+10FFFF, excluding the surrogate range U+D800 to U+DFFF. "
+             u8"As "
              u8"U+110000 exceeds the maximum valid codepoint, it cannot "
              u8"represent "
              u8"a "
-             u8"valid Unicode scalar value, and the function was terminated.", U"<string>"                   },
+             u8"valid Unicode scalar value, and the function was "
+             u8"terminated.",                                 U"<string>"                   },
     };
     vector<tuple<
         unicode_conversion_error,
