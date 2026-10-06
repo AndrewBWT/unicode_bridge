@@ -4095,7 +4095,7 @@ constexpr std::array<std::pair<char8_t, char8_t>, 11>
     };
 }
 
-std::vector<std::pair<char8_t, size_t>>
+constexpr std::vector<std::pair<char8_t, size_t>>
     get_hex_escape_sequences(
         const bool ascii_output_arg
     )
@@ -4949,8 +4949,8 @@ constexpr std::u8string
     }
     case end_of_input:
         return u8"The current iterator passed to the function was equal to "
-            u8"the end iterator — signifying that there were no more code "
-            u8"units to read, and the function was terminated.";
+               u8"the end iterator — signifying that there were no more code "
+               u8"units to read, and the function was terminated.";
     case reading_hex_end_of_input_found:
     {
         const size_t n_digits_read     = _numeric_values[0];
@@ -7850,27 +7850,27 @@ constexpr from_formatted_string_error
 }
 
 constexpr from_formatted_string_error
-from_formatted_string_error_factory::end_of_input(
-    const character_type_enum input_type_arg,
-    const character_type_enum output_type_arg
-) noexcept
+    from_formatted_string_error_factory::end_of_input(
+        const character_type_enum input_type_arg,
+        const character_type_enum output_type_arg
+    ) noexcept
 {
     return from_formatted_string_error(
         from_formatted_string_error::error_code::end_of_input,
         forward_scan_unicode_error(
             forward_scan_unicode_error::forward_scan_unicode_error_code::
-            generic_error,
+                generic_error,
             basic_unicode_error(
                 basic_unicode_error::basic_unicode_error_code::generic_error,
-                { u8'\0', u8'\0', u8'\0', u8'\0' },
+                {u8'\0', u8'\0', u8'\0', u8'\0'},
                 U'\0',
                 0,
-                { u'\0', u'\0' },
+                {u'\0', u'\0'},
                 input_type_arg
             )
         ),
         std::string_view(),
-        { 0, 0, 0 },
+        {0, 0, 0},
         U'\0',
         output_type_arg
     );
