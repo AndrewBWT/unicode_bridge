@@ -2863,89 +2863,130 @@ constexpr bool
     }
 }
 
+struct focused_string_info
+{
+    bool        left_had_more_input;
+    std::size_t left_begin_str;
+    std::size_t left_str_size;
+    std::size_t central_begin_str;
+    std::size_t central_str_size;
+    std::size_t right_begin_str;
+    std::size_t right_str_size;
+    bool        right_had_more_input;
+
+    template <typename Char>
+    constexpr std::tuple<bool, bool, std::basic_string_view<Char>>
+        make_focused_string(
+            const std::basic_string_view<Char> str_arg
+        )
+    {
+        return std::make_tuple(
+            left_had_more_input,
+            right_had_more_input,
+            str_arg.substr(
+                left_begin_str,
+                left_str_size + central_str_size + right_str_size
+            )
+        );
+    }
+};
+
+/*!
+ * @brief
+ * @tparam T
+ * @param string_view_arg
+ * @param idx_to_focus_on_arg
+ * @param focus_size_arg The size of the "central" character. By this, we
+ * specifically mean the number of code units it requires.
+ * @param maximum_left_chars_arg
+ * @param maximum_right_chars_arg
+ * @return
+ */
 template <typename T>
-constexpr std::tuple<bool, bool, std::basic_string_view<T>>
-    make_focused_string(
+[[nodiscard]]
+constexpr focused_string_info
+    make_focused_string_info(
         const std::basic_string_view<T> string_view_arg,
         const std::size_t               idx_to_focus_on_arg,
-        const std::size_t               size_of_idx_to_focus_on,
-        const std::size_t               maximum_left_offset_from_idx_arg  = 8,
-        const std::size_t               maximum_right_offset_from_idx_arg = 8
+        const std::size_t               focus_size_arg,
+        const std::size_t               maximum_left_chars_arg  = 8,
+        const std::size_t               maximum_right_chars_arg = 8
     ) noexcept
 {
     using namespace std;
-    if (string_view_arg.empty())
-    {
-        return {false, false, string_view_arg};
-    }
-    bool         cutoff_left  = true;
-    bool         cutoff_right = true;
-    const size_t normalised_focused_idx
-        = std::min(idx_to_focus_on_arg, string_view_arg.size() - 1);
-    const size_t normalised_focused_idx_end = std::min(
-        normalised_focused_idx + size_of_idx_to_focus_on,
-        string_view_arg.size() - 1
-    );
-    size_t start_char    = normalised_focused_idx;
-    size_t chars_counted = 0;
-    while (chars_counted < maximum_left_offset_from_idx_arg && start_char > 0)
+    const size_t size  = string_view_arg.size();
+    const size_t index = min(idx_to_focus_on_arg, size);
+
+    // The length, in code units, of up to max_chars_arg characters starting at
+    // begin_arg.
+    auto forward_length
+        = [&](const size_t begin_arg, const size_t max_chars_arg) -> size_t
     {
         if constexpr (char_type_is_unicode_c<T>)
         {
-            auto res = prev_char32_no_error(
-                string_view_arg.begin() + start_char, string_view_arg.begin()
+            auto pos
+                = string_view_arg.begin() + static_cast<ptrdiff_t>(begin_arg);
+            for (size_t chars = 0;
+                 chars < max_chars_arg && pos != string_view_arg.end();
+                 ++chars)
+            {
+                // Anything that doesn't decode counts as one code unit.
+                const auto next
+                    = next_char32_no_error(pos, string_view_arg.end());
+                const auto step  = next.has_value()
+                                       ? static_cast<ptrdiff_t>(next->second)
+                                       : ptrdiff_t{1};
+                pos             += min(step, string_view_arg.end() - pos);
+            }
+            return static_cast<size_t>(
+                pos
+                - (string_view_arg.begin() + static_cast<ptrdiff_t>(begin_arg))
             );
-            chars_counted++;
-            start_char -= (res.has_value() ? res.value().second : 1);
         }
         else
         {
-            optional<char> res;
-            res = (start_char == 0)
-                      ? std::nullopt
-                      : make_optional(
-                            *(string_view_arg.begin() + start_char - 1)
-                        );
-            chars_counted++;
-            start_char -= (res.has_value() ? 1 : 0);
+            return min(max_chars_arg, size - begin_arg);
         }
-    }
-    if (start_char == 0)
+    };
+
+    const size_t central_size = min(focus_size_arg, size - index);
+    const size_t right_begin  = index + central_size;
+    const size_t right_size
+        = forward_length(right_begin, maximum_right_chars_arg);
+
+    // The left: back up to maximum_left_chars_arg characters from the index.
+    size_t left_begin = index;
+    if constexpr (char_type_is_unicode_c<T>)
     {
-        cutoff_left = false;
-    }
-    size_t end_char = normalised_focused_idx_end;
-    chars_counted   = 0;
-    while (chars_counted < maximum_right_offset_from_idx_arg
-           && end_char < string_view_arg.size())
-    {
-        if constexpr (char_type_is_unicode_c<T>)
+        auto pos = string_view_arg.begin() + static_cast<ptrdiff_t>(index);
+        for (size_t chars = 0;
+             chars < maximum_left_chars_arg && pos != string_view_arg.begin();
+             ++chars)
         {
-            auto res = next_char32_no_error(
-                string_view_arg.begin() + end_char, string_view_arg.end()
-            );
-            chars_counted++;
-            end_char += (res.has_value() ? res.value().second : 1);
+            // Anything that doesn't decode counts as one code unit.
+            const auto previous
+                = prev_char32_no_error(pos, string_view_arg.begin());
+            const auto step  = previous.has_value()
+                                   ? static_cast<ptrdiff_t>(previous->second)
+                                   : ptrdiff_t{1};
+            pos             -= min(step, pos - string_view_arg.begin());
         }
-        else
-        {
-            optional<char> res;
-            res = (end_char >= string_view_arg.size())
-                      ? std::nullopt
-                      : make_optional(*(string_view_arg.begin() + end_char));
-            chars_counted++;
-            end_char += (res.has_value() ? 1 : 0);
-        }
+        left_begin = static_cast<size_t>(pos - string_view_arg.begin());
     }
-    if (end_char == string_view_arg.size())
+    else
     {
-        cutoff_right = false;
+        left_begin = index - min(maximum_left_chars_arg, index);
     }
 
-    return {
-        cutoff_left,
-        cutoff_right,
-        string_view_arg.substr(start_char, end_char - start_char)
+    return focused_string_info{
+        .left_had_more_input  = left_begin > 0,
+        .left_begin_str       = left_begin,
+        .left_str_size        = index - left_begin,
+        .central_begin_str    = index,
+        .central_str_size     = central_size,
+        .right_begin_str      = right_begin,
+        .right_str_size       = right_size,
+        .right_had_more_input = right_begin + right_size < size,
     };
 }
 
@@ -5480,7 +5521,8 @@ constexpr std::u8string
     {
         msg.append(u8"(\"");
         auto [cutoff_left, cutoff_right, focused_str_view]
-            = make_focused_string(str_arg, _index, 1);
+            = make_focused_string_info(str_arg, _index, 1)
+                  .make_focused_string(str_arg);
         msg.append(cutoff_left ? u8"..." : u8"");
         msg.append(to_formatted_unicode_string<char8_t>(focused_str_view));
         msg.append(cutoff_right ? u8"..." : u8"");
@@ -9345,7 +9387,8 @@ std::u8string
         brackets_open = true;
         msg.append(u8"(\"");
         auto [cutoff_left, cutoff_right, focused_str_view]
-            = make_focused_string(sv, start_idx, n_code_units_arg);
+            = make_focused_string_info(sv, start_idx, n_code_units_arg)
+                  .make_focused_string(sv);
         msg.append(cutoff_left ? u8"..." : u8"");
         msg.append(to_formatted_unicode_string<char8_t>(focused_str_view));
         msg.append(cutoff_right ? u8"..." : u8"");
