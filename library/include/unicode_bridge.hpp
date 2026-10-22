@@ -2102,13 +2102,41 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
              std::basic_string_view<char_type_of_t<ArgType>>>
 constexpr bool
     is_valid_unicode(ArgType str_arg) noexcept;
+
+struct ignore_chars
+{
+    template <typename It>
+    constexpr void
+        operator()(
+            It,
+            It
+        ) const noexcept
+    {}
+};
+
+/*!
+ * @brief Validates the input unicidoe. Returns a std::size_t, representing the
+ * last valid Unicode char.
+ * @tparam ArgType
+ * @param str_arg
+ * @return
+ */
+template <typename ArgType, typename Process_Char_Func = ignore_chars>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::size_t
+    validate_unicode(ArgType str_arg, Process_Char_Func process_char_arg = {})
+        noexcept;
 /*!
  * Checks if a single character is valid Unicode.
  *
- * @tparam InputChar. The character type of the input, should be a Unicode
- * character type.
+ * @tparam InputChar. The character type of the input, should be a
+ * Unicode character type.
  * @param char_arg The character to check.
- * @return True if character is valid Unicode on its own, false otherwise.
+ * @return True if character is valid Unicode on its own, false
+ * otherwise.
  */
 template <typename InputChar>
 requires char_type_is_unicode_c<InputChar>
@@ -6829,20 +6857,196 @@ constexpr bool
     ) noexcept
 {
     using namespace std;
-    using namespace UNICODE_BRIDGE_NAMESPACE_INTERNAL;
     using InputChar = char_type_of_t<ArgType>;
-    auto str_as_sv  = basic_string_view<InputChar>(str_arg);
-    for (auto it = str_as_sv.begin(), end = str_as_sv.end(); it != end;)
+    auto str_as_sv = basic_string_view<InputChar>(str_arg);
+    return validate_unicode(str_arg) == str_as_sv.size();
+}
+
+template <typename ArgType, typename Process_Char_Func>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::size_t
+    validate_unicode(
+        ArgType           str_arg,
+        Process_Char_Func process_char_arg
+    ) noexcept
+{
+    using namespace std;
+    using InputChar        = char_type_of_t<ArgType>;
+    auto         str_as_sv = basic_string_view<InputChar>(str_arg);
+    const size_t size      = str_as_sv.size();
+    size_t       idx       = 0;
+    if constexpr (same_as<InputChar, char8_t>)
     {
-        auto result_var
-            = forward_scan_for_next_char32<false, InputChar>(it, end);
-        if (not result_var.has_value())
+        while (idx < size)
         {
-            return false;
+            size_t        length       = 0;
+            const char8_t leading_byte = str_as_sv[idx];
+            if (leading_byte <= internal::ascii_limit<InputChar>())
+            {
+                length = 1;
+            }
+            else
+            {
+                length = internal::utf8_sequence_length(leading_byte);
+                // A length of 0 means its unrecognised leading byte.
+                // A lone continuation byte, C0 (1100'0000) or C1 (both only
+                // ever overlong), or beyond F4 (1111'0100) (would create
+                // something beyond U+10FFFF).
+                if (length == 0 || leading_byte == 0b1100'0000
+                    || leading_byte == 0b1100'0001
+                    || leading_byte > 0b1111'0100)
+                {
+                    return idx;
+                }
+                // Apart from the above checks, the following rules dicate which
+                // UTF8 sequences are invalid:
+                // - Any invalid continuation byte in placements 3 or 4 (if
+                // valid).
+                // - For byte 2 (in 2/3/4 sized sequences), there are four
+                // leading byte values which need to be considered carefully.
+                // All other leading byte values just require checking for
+                // continuation bytes in all parts of the UTF8 sequence.
+
+                // Each of these values must be in a special range. We set these
+                // at the continuation byte lower/upper values, so that for all
+                // other values, these are checked correctly.
+
+                // Continuation bytes in the form 10xxxxxx. These allow the user
+                // to check against upper/lower values of them.
+                char8_t low  = 0b1000'0000;
+                char8_t high = 0b1011'1111;
+                switch (leading_byte)
+                {
+                case 0b1110'0000:
+                    // Sequence length 3 in a 16 bit number. Format
+                    // 1110aaaa,10bbbbcc,10ccdddd. 3-byte sequences must encode
+                    // atleast U+0800, or it will fit in 2 bytes (overlong
+                    // encoding). U+0800 := a=0000, b= 1000, c=0000, d=0000. As
+                    // leading byte already checked for a=0, we must check that
+                    // second byte is in the form 101bbbcc. High already set to
+                    // check for that, just got to change low to 0b10100000.
+                    low = 0b1010'0000;
+                    break;
+                case 0b1110'1101:
+                    // Surrogates encode D800 to DFFF, UTF8 cannot encode these
+                    // values. We can check for those by analysing the first 2
+                    // bytes of the UTF8 sequence, Bytes for D800 are
+                    // 11101101,10100000,10000000 and
+                    // for DFFF they are 11101101,10111111,10111111 a
+                    // generalised form for byte 2 is 101xxxxx. So to be valid,
+                    // highest it can be is 1 below that value - 10011111.
+                    high = 0b1001'1111;
+                    break;
+                case 0b1111'0000:
+                    // Sequence length 4 in a 21 bit number. Format
+                    // 11110abb,10bbcccc,10ddddee,10eeffff. 4-byte sequences
+                    // must encode atleast U+010000, or it will fit in 3 bytes
+                    // (overlong encoding). U+010000 := a=0, b=0100,
+                    // c,d,e,f=0000. As leading byte already checked for a=0, we
+                    // must check that second byte is in the form 10010000. High
+                    // already set to check for that, just got to change low.
+                    low = 0b1001'0000;
+                    break;
+                case 0b1111'0100:
+                    // Sequence length 4 in a 21 bit number. Format
+                    // 11110abb,10bbcccc,10ddddee,10eeffff. 4-byte sequences
+                    // must encode at most U+10FFFF. U+10FFFF := a=1, b=0000,
+                    // c,d,e,f=1111. As leading byte already checked for
+                    // a=1 and first part of b=00, we must check that second
+                    // byte is at most 10001111.
+                    high = 0b1000'1111;
+                    break;
+                default:
+                    break;
+                }
+                for (size_t byte_idx = 1; byte_idx < length; ++byte_idx)
+                {
+                    if (idx + byte_idx >= size)
+                    {
+                        // not long enough sequence.
+                        return idx;
+                    }
+                    const char8_t byte_var = str_as_sv[idx + byte_idx];
+                    const bool    byte_valid
+                        = byte_idx == 1
+                              ? (byte_var >= low && byte_var <= high)
+                              : internal::is_utf8_continuation_byte(byte_var);
+                    if (not byte_valid)
+                    {
+                        // Invalid byte.
+                        return idx;
+                    }
+                }
+            }
+            process_char_arg(
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length
+            );
+            idx += length;
         }
-        it += result_var->second;
+        return size;
     }
-    return true;
+    else if constexpr (same_as<InputChar, char16_t>
+                       || internal::is_wchar_and_16_bit_c<InputChar>)
+    {
+        while (idx < size)
+        {
+            // Convert wchar_t into char16_t.
+            const char16_t unit   = static_cast<char16_t>(str_as_sv[idx]);
+            size_t         length = 1;
+            if (internal::is_surrogate(unit))
+            {
+                if (not internal::is_high_surrogate(unit))
+                {
+                    // Low surrogate should not be on own
+                    return idx;
+                }
+                if (idx + 1 >= size)
+                {
+                    // No high surrogate following low surrogate.
+                    return idx;
+                }
+                const char16_t next_char
+                    = static_cast<char16_t>(str_as_sv[idx + 1]);
+                if (not internal::is_low_surrogate(next_char))
+                {
+                    // Must be high surrogate following low surrogate.
+                    return idx;
+                }
+                length = 2;
+            }
+            process_char_arg(
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length
+            );
+            idx += length;
+        }
+        return size;
+    }
+    else if constexpr (same_as<InputChar, char32_t>
+                       || internal::is_wchar_and_32_bit_c<InputChar>)
+    {
+        while (idx < size)
+        {
+            const char32_t char_var = static_cast<char32_t>(str_as_sv[idx]);
+            if (internal::is_invalid_char32(char_var))
+            {
+                return idx;
+            }
+            process_char_arg(
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + 1
+            );
+            ++idx;
+        }
+        return size;
+    }
+    else
+    {
+        UNICODE_BRIDGE_STATIC_ASSERT(
+            InputChar, "validate_unicode invalid for this character type"
+        );
+    }
 }
 
 template <typename InputChar>
