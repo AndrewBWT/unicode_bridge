@@ -2109,7 +2109,8 @@ struct ignore_chars
     constexpr void
         operator()(
             It,
-            It
+            It,
+            const std::size_t index_arg
         ) const noexcept
     {}
 };
@@ -6999,7 +7000,7 @@ constexpr std::size_t
                 }
             }
             process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length, idx
             );
             idx += length;
         }
@@ -7035,7 +7036,7 @@ constexpr std::size_t
                 length = 2;
             }
             process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length, idx
             );
             idx += length;
         }
@@ -7052,7 +7053,7 @@ constexpr std::size_t
                 return idx;
             }
             process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + 1
+                str_as_sv.begin() + idx, str_as_sv.begin() + idx + 1, idx
             );
             ++idx;
         }
