@@ -2116,7 +2116,7 @@ struct ignore_chars
 
 /*!
  * @brief Validates the input unicidoe. Returns a std::size_t, representing the
- * last valid Unicode char.
+ * index past the last valid part of a Unicode scalar value.
  * @tparam ArgType
  * @param str_arg
  * @return
@@ -2129,6 +2129,23 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
 constexpr std::size_t
     validate_unicode(ArgType str_arg, Process_Char_Func process_char_arg = {})
         noexcept;
+/*!
+ * @brief Counts the number of actual characters in a unicode string.
+ * 
+ * Note, it assumes that the strings are valid Unicode.
+ * 
+ * @tparam ArgType 
+ * @param str_arg 
+ * @return 
+ */
+template <typename ArgType>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::size_t
+    count_chars(ArgType str_arg) noexcept;
+
 /*!
  * Checks if a single character is valid Unicode.
  *
@@ -6858,7 +6875,7 @@ constexpr bool
 {
     using namespace std;
     using InputChar = char_type_of_t<ArgType>;
-    auto str_as_sv = basic_string_view<InputChar>(str_arg);
+    auto str_as_sv  = basic_string_view<InputChar>(str_arg);
     return validate_unicode(str_arg) == str_as_sv.size();
 }
 
@@ -7040,6 +7057,54 @@ constexpr std::size_t
             ++idx;
         }
         return size;
+    }
+    else
+    {
+        UNICODE_BRIDGE_STATIC_ASSERT(
+            InputChar, "validate_unicode invalid for this character type"
+        );
+    }
+}
+
+template <typename ArgType>
+requires char_type_is_unicode_c<char_type_of_t<ArgType>>
+         && std::convertible_to<
+             ArgType,
+             std::basic_string_view<char_type_of_t<ArgType>>>
+constexpr std::size_t
+    count_chars(
+        ArgType str_arg
+    ) noexcept
+{
+    using namespace std;
+    using InputChar  = char_type_of_t<ArgType>;
+    auto   str_as_sv = basic_string_view<InputChar>(str_arg);
+    size_t idx       = 0;
+    if constexpr (same_as<InputChar, char8_t>)
+    {
+        size_t count = 0;
+        for (const char8_t byte : str_as_sv)
+        {
+            count += internal::is_utf8_continuation_byte(byte) ? 0 : 1;
+        }
+        return count;
+    }
+    else if constexpr (same_as<InputChar, char16_t>
+                       || internal::is_wchar_and_16_bit_c<InputChar>)
+    {
+        size_t count = 0;
+        for (const auto& char_var : str_as_sv)
+        {
+            const char16_t var_as_u16 = static_cast<char16_t>(char_var);
+            count += not internal::is_surrogate(var_as_u16)
+                || internal::is_low_surrogate(var_as_u16) ? 0 : 1;
+        }
+        return count;
+    }
+    else if constexpr (same_as<InputChar, char32_t>
+                       || internal::is_wchar_and_32_bit_c<InputChar>)
+    {
+        return str_as_sv.size();
     }
     else
     {
