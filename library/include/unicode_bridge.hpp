@@ -2103,18 +2103,6 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
 constexpr bool
     is_valid_unicode(ArgType str_arg) noexcept;
 
-struct ignore_chars
-{
-    template <typename It>
-    constexpr void
-        operator()(
-            It,
-            It,
-            const std::size_t index_arg
-        ) const noexcept
-    {}
-};
-
 /*!
  * @brief Validates the input unicidoe. Returns a std::size_t, representing the
  * index past the last valid part of a Unicode scalar value.
@@ -2122,22 +2110,21 @@ struct ignore_chars
  * @param str_arg
  * @return
  */
-template <typename ArgType, typename Process_Char_Func = ignore_chars>
+template <typename ArgType>
 requires char_type_is_unicode_c<char_type_of_t<ArgType>>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
 constexpr std::size_t
-    validate_unicode(ArgType str_arg, Process_Char_Func process_char_arg = {})
-        noexcept;
+    validate_unicode(ArgType str_arg) noexcept;
 /*!
  * @brief Counts the number of actual characters in a unicode string.
- * 
+ *
  * Note, it assumes that the strings are valid Unicode.
- * 
- * @tparam ArgType 
- * @param str_arg 
- * @return 
+ *
+ * @tparam ArgType
+ * @param str_arg
+ * @return
  */
 template <typename ArgType>
 requires char_type_is_unicode_c<char_type_of_t<ArgType>>
@@ -6880,15 +6867,14 @@ constexpr bool
     return validate_unicode(str_arg) == str_as_sv.size();
 }
 
-template <typename ArgType, typename Process_Char_Func>
+template <typename ArgType>
 requires char_type_is_unicode_c<char_type_of_t<ArgType>>
          && std::convertible_to<
              ArgType,
              std::basic_string_view<char_type_of_t<ArgType>>>
 constexpr std::size_t
     validate_unicode(
-        ArgType           str_arg,
-        Process_Char_Func process_char_arg
+        ArgType           str_arg
     ) noexcept
 {
     using namespace std;
@@ -6900,6 +6886,31 @@ constexpr std::size_t
     {
         while (idx < size)
         {
+            if !consteval
+            {
+                // If there are atleast 8 char8_ts.
+                while (idx + 8 <= size)
+                {
+                    std::uint64_t uint64;
+                    // Copy those 8 char8_t's into the uint64;
+                    std::memcpy(&uint64, str_as_sv.data() + idx, 8);
+                    // An element is NOT ascii if top bit is set to 1 (so
+                    // 10000000, or 0x80 in hex. & 8 bytes with 8 0x80's. If result
+                    // is not zero, there's some non-ASCII, and defer to the
+                    // slower code.
+                    if ((uint64 & 0x8080'8080'8080'8080ull) != 0)
+                    {
+                        break;
+                    }
+                    idx += 8;
+                }
+                if (idx >= size)
+                {
+                    // At the end of the string, better to just check with the
+                    // normal function those last chars.
+                    break;
+                }
+            }
             size_t        length       = 0;
             const char8_t leading_byte = str_as_sv[idx];
             if (leading_byte <= internal::ascii_limit<InputChar>())
@@ -6999,9 +7010,6 @@ constexpr std::size_t
                     }
                 }
             }
-            process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length, idx
-            );
             idx += length;
         }
         return size;
@@ -7035,9 +7043,6 @@ constexpr std::size_t
                 }
                 length = 2;
             }
-            process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + length, idx
-            );
             idx += length;
         }
         return size;
@@ -7052,9 +7057,6 @@ constexpr std::size_t
             {
                 return idx;
             }
-            process_char_arg(
-                str_as_sv.begin() + idx, str_as_sv.begin() + idx + 1, idx
-            );
             ++idx;
         }
         return size;
@@ -7096,9 +7098,11 @@ constexpr std::size_t
         size_t count = 0;
         for (const auto& char_var : str_as_sv)
         {
-            const char16_t var_as_u16 = static_cast<char16_t>(char_var);
-            count += not internal::is_surrogate(var_as_u16)
-                || internal::is_low_surrogate(var_as_u16) ? 0 : 1;
+            const char16_t var_as_u16  = static_cast<char16_t>(char_var);
+            count                     += not internal::is_surrogate(var_as_u16)
+                             || internal::is_low_surrogate(var_as_u16)
+                                             ? 0
+                                             : 1;
         }
         return count;
     }
