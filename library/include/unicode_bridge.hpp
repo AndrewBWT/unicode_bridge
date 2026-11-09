@@ -135,7 +135,7 @@ concept is_char_type_c
  */
 template <typename String_Like_Type>
 using char_type_of_t = typename UNICODE_BRIDGE_NAMESPACE_INTERNAL::char_type_of<
-    String_Like_Type>::type;
+    std::decay_t<String_Like_Type>>::type;
 UNICODE_BRIDGE_INTERNAL_NS_BEGIN
 
 // ---- Internal concepts ----
@@ -6874,7 +6874,7 @@ requires char_type_is_unicode_c<char_type_of_t<ArgType>>
              std::basic_string_view<char_type_of_t<ArgType>>>
 constexpr std::size_t
     validate_unicode(
-        ArgType           str_arg
+        ArgType str_arg
     ) noexcept
 {
     using namespace std;
@@ -6886,7 +6886,7 @@ constexpr std::size_t
     {
         while (idx < size)
         {
-            if !consteval
+            if ! consteval
             {
                 // If there are atleast 8 char8_ts.
                 while (idx + 8 <= size)
@@ -6895,9 +6895,9 @@ constexpr std::size_t
                     // Copy those 8 char8_t's into the uint64;
                     std::memcpy(&uint64, str_as_sv.data() + idx, 8);
                     // An element is NOT ascii if top bit is set to 1 (so
-                    // 10000000, or 0x80 in hex. & 8 bytes with 8 0x80's. If result
-                    // is not zero, there's some non-ASCII, and defer to the
-                    // slower code.
+                    // 10000000, or 0x80 in hex. & 8 bytes with 8 0x80's. If
+                    // result is not zero, there's some non-ASCII, and defer to
+                    // the slower code.
                     if ((uint64 & 0x8080'8080'8080'8080ull) != 0)
                     {
                         break;
